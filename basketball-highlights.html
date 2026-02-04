@@ -1,0 +1,1919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Highlights Detector</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .input-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            border: none;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        input[type="text"],
+        input[type="file"] {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #e1e8ed;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d1d8dd;
+        }
+
+        .video-section {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+            align-items: start;
+        }
+
+        @media (max-width: 968px) {
+            .video-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .video-column {
+            position: sticky;
+            top: 20px;
+        }
+
+        .video-section.theater-mode {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+
+        .video-section.theater-mode .video-column {
+            position: relative;
+        }
+
+        .video-section.theater-mode .video-container {
+            height: 70vh;
+        }
+
+        .video-section.theater-mode video {
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .video-section.theater-mode #videoOverlay {
+            bottom: 80px;
+            font-size: 16px;
+        }
+
+        .video-section.theater-mode .highlights-container {
+            max-height: none;
+        }
+
+        .video-section.theater-mode .highlights-list {
+            display: flex;
+            flex-direction: row;
+            overflow-x: auto;
+            overflow-y: hidden;
+            gap: 12px;
+            padding-bottom: 10px;
+            scroll-behavior: smooth;
+        }
+
+        .video-section.theater-mode .highlight-item {
+            flex-direction: column;
+            min-width: 160px;
+            max-width: 160px;
+        }
+
+        .video-section.theater-mode .highlight-thumbnail {
+            width: 100%;
+            height: 90px;
+        }
+
+        .highlight-item.playing {
+            border-color: #667eea;
+            background: #f0f4ff;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+        }
+
+        .video-container {
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        video {
+            width: 100%;
+            display: block;
+        }
+
+        canvas {
+            display: none;
+        }
+
+        #selectionCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+            display: none;
+        }
+
+        #selectionCanvas.active {
+            display: block;
+        }
+
+        .region-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .region-indicator {
+            background: white;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #333;
+            border: 2px solid #e1e8ed;
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .region-indicator.set {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .region-indicator strong {
+            color: #667eea;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .region-badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 6px;
+        }
+
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 8px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+        }
+
+        .highlights-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+
+        .highlights-list {
+            display: grid;
+            gap: 12px;
+            max-height: none;
+        }
+
+        .progress-container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid #e1e8ed;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e1e8ed;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status.processing {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .status.complete {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .highlights-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 12px;
+        }
+
+        .highlights-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .highlights-header h2 {
+            font-size: 24px;
+            color: #333;
+        }
+
+        .highlight-count {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .highlights-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .highlight-item {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+
+        .highlight-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .highlight-thumbnail {
+            width: 140px;
+            height: 105px;
+            background: #000;
+            border-radius: 6px;
+            overflow: hidden;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .highlight-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .highlight-thumbnail .play-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 24px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .highlight-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .highlight-number {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .highlight-time {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .confidence {
+            font-size: 11px;
+            color: #666;
+            background: #e1e8ed;
+            padding: 3px 6px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .region-label {
+            font-size: 11px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .export-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #e1e8ed;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .settings {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .setting-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .setting-label {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .setting-description {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        input[type="range"] {
+            width: 150px;
+        }
+
+        .setting-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #667eea;
+            min-width: 40px;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏀 Basketball Highlights Detector</h1>
+            <p>Automatically find made baskets in your pickup game videos</p>
+        </div>
+
+        <div class="content">
+            <!-- Input Section -->
+            <div class="input-section">
+                <div class="tabs">
+                    <button class="tab active" id="fileTab" onclick="switchTab('file')">Upload File</button>
+                    <button class="tab" id="urlTab" onclick="switchTab('url')">Use URL</button>
+                </div>
+
+                <div id="fileInput">
+                    <div class="input-group">
+                        <input type="file" id="videoFile" accept="video/*" onchange="handleFileUpload(event)">
+                        <button class="btn btn-primary" onclick="loadVideo()" id="loadFileBtn" disabled>
+                            Load Video
+                        </button>
+                    </div>
+                </div>
+
+                <div id="urlInput" style="display: none;">
+                    <div class="input-group">
+                        <input type="text" id="videoUrl" placeholder="Enter video URL (e.g., https://example.com/video.mp4 or Google Drive link)" onkeypress="if(event.key==='Enter') loadVideo()">
+                        <button class="btn btn-primary" onclick="loadVideo()">
+                            Load Video
+                        </button>
+                    </div>
+                    <p style="font-size: 12px; color: #666; margin-top: 8px;">
+                        💡 For Google Drive: Share the video → Get link → Change to "Anyone with the link" → Use direct link
+                    </p>
+                </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="settings" id="settingsPanel" style="display: none;">
+                <h3 style="margin-bottom: 15px; color: #333;">Detection Settings</h3>
+                
+                <div class="setting-row">
+                    <div>
+                        <div class="setting-label">Min. Gap Between Clips</div>
+                        <div class="setting-description">Minimum seconds between detected baskets</div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="range" id="minGap" min="2" max="10" value="3" oninput="updateSettings()">
+                        <span class="setting-value" id="minGapValue">3s</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video Section -->
+            <div class="video-section" id="videoSection" style="display: none;">
+                <div class="video-column">
+                    <!-- Guided Setup Steps -->
+                    <div id="setupGuide" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                            <div style="width: 40px; height: 40px; background: white; color: #667eea; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px;">
+                                <span id="stepNumber">1</span>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-size: 18px; font-weight: 600; margin-bottom: 5px;" id="stepTitle">
+                                    Select First Basket Region
+                                </div>
+                                <div style="font-size: 14px; opacity: 0.9;" id="stepDescription">
+                                    Click "Add Basket Region" below and draw a box around the basket/rim
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn" onclick="skipToProcessing()" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);">
+                                Skip to Processing
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="video-container">
+                        <video id="videoPlayer" controls></video>
+                        <video id="processingVideo" style="display: none;"></video>
+                        <canvas id="canvas"></canvas>
+                        <canvas id="selectionCanvas"></canvas>
+                        
+                        <!-- Simplified Video Overlay - positioned below video controls -->
+                        <div id="videoOverlay" style="display: none; position: absolute; bottom: 60px; left: 10px; right: 10px; background: rgba(0, 0, 0, 0.8); padding: 12px 16px; border-radius: 8px; color: white; font-family: sans-serif; z-index: 100; pointer-events: auto;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <button onclick="playPreviousClip()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; pointer-events: auto;">
+                                        ◀
+                                    </button>
+                                    <div>
+                                        <div style="font-size: 14px; font-weight: 600;">
+                                            Clip <span id="overlayClipNumber">1</span> of <span id="overlayTotalClips">0</span>
+                                        </div>
+                                        <div style="font-size: 11px; color: #ddd; margin-top: 2px;">
+                                            <span id="overlayTimestamp">0:00</span> • <span id="overlayClipTime">0.0s</span>/<span id="overlayClipDuration">4.0s</span>
+                                        </div>
+                                    </div>
+                                    <button onclick="playNextClip()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; pointer-events: auto;">
+                                        ▶
+                                    </button>
+                                </div>
+                                <div style="flex: 1; margin: 0 15px;">
+                                    <div style="width: 100%; height: 4px; background: rgba(255, 255, 255, 0.3); border-radius: 2px; overflow: hidden;">
+                                        <div id="overlayProgress" style="width: 0%; height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); transition: width 0.1s linear;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="region-controls">
+                        <div class="region-indicator" id="regionIndicator">
+                            <strong>🎯 Basket Regions:</strong>
+                            <div id="regionList">None selected</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button class="btn btn-primary" onclick="startRegionSelection()" id="selectRegionBtn" style="flex: 1;">
+                            📍 Add Basket Region
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearLastRegion()" id="clearRegionBtn" style="display: none;">
+                            ✕ Remove
+                        </button>
+                    </div>
+                    <div class="help-text" id="regionHelp" style="display: none;">
+                        Click and drag to draw a box around the basket. Release to save.
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="processVideo()" id="processBtn" style="margin-top: 15px; width: 100%; display: none;">
+                        <span>▶ Play Clips</span>
+                    </button>
+                    
+                    <button class="btn btn-primary" onclick="playAllHighlights()" id="playAllBtn" style="margin-top: 10px; width: 100%; display: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <span>▶ Play All Highlights</span>
+                    </button>
+                </div>
+
+                <div class="highlights-container">
+                    <div class="progress-container" id="progressContainer" style="display: none;">
+                        <h3 style="margin-bottom: 15px;">Processing...</h3>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">0%</div>
+                        <div style="font-size: 13px; color: #333; margin-top: 15px; padding: 12px; background: white; border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>🎬 Frames Analyzed:</span>
+                                <strong id="framesAnalyzed">0</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>🏀 Baskets Found:</span>
+                                <strong id="basketsFound">0</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>⏱️ Current Time:</span>
+                                <strong id="currentProcessTime">0:00</strong>
+                            </div>
+                        </div>
+                        <p style="font-size: 12px; color: #666; margin-top: 10px; text-align: center;">
+                            💡 You can watch the main video while processing continues
+                        </p>
+                    </div>
+
+                    <!-- Highlights Section -->
+                    <div class="highlights-section" id="highlightsSection" style="display: none;">
+                        <div class="highlights-header">
+                            <h2>Detected Highlights</h2>
+                            <span class="highlight-count" id="highlightCount">0 baskets</span>
+                        </div>
+                        
+                        <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 11px; color: #666;">
+                            <strong>Debug Info:</strong> M=Motion, R=Rim, B=Ball 
+                            | 📉=Motion Drop, 🎯=Rim Found, 🏀=Ball Detected
+                        </div>
+
+                        <div class="highlights-list" id="highlightsList"></div>
+
+                        <div class="export-section">
+                            <button class="btn btn-secondary" onclick="exportTimestamps()">
+                                📋 Copy Timestamps
+                            </button>
+                            <button class="btn btn-secondary" onclick="exportJSON()" style="margin-left: 10px;">
+                                💾 Download JSON
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Messages -->
+            <div id="statusMessage" style="display: none;"></div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="emptyState">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polygon points="10 8 16 12 10 16 10 8"></polygon>
+                </svg>
+                <h3>No video loaded</h3>
+                <p>Upload a video file or paste a URL to get started</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTab = 'file';
+        let videoFile = null;
+        let highlights = [];
+        let settings = {
+            minGap: 3  // Minimum gap between clips in seconds
+        };
+        
+        // Region selection variables - now supports multiple regions
+        let basketRegions = [];
+        let isSelectingRegion = false;
+        let selectionStart = null;
+        let selectionCanvas = null;
+        let selectionCtx = null;
+        const MAX_REGIONS = 2;
+        
+        // Playback mode variables
+        let isPlayingAll = false;
+        let currentHighlightIndex = 0;
+        let isTheaterMode = false;
+        let playAllListener = null;
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('fileTab').classList.toggle('active', tab === 'file');
+            document.getElementById('urlTab').classList.toggle('active', tab === 'url');
+            document.getElementById('fileInput').style.display = tab === 'file' ? 'block' : 'none';
+            document.getElementById('urlInput').style.display = tab === 'url' ? 'block' : 'none';
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                videoFile = file;
+                document.getElementById('loadFileBtn').disabled = false;
+            }
+        }
+
+        function loadVideo() {
+            const video = document.getElementById('videoPlayer');
+            const processingVideo = document.getElementById('processingVideo');
+            
+            if (currentTab === 'file' && videoFile) {
+                const url = URL.createObjectURL(videoFile);
+                video.src = url;
+                processingVideo.src = url;
+            } else if (currentTab === 'url') {
+                let url = document.getElementById('videoUrl').value.trim();
+                
+                // Handle Google Drive links
+                if (url.includes('drive.google.com')) {
+                    const fileId = extractGoogleDriveId(url);
+                    if (fileId) {
+                        url = `https://drive.google.com/uc?export=download&id=${fileId}`;
+                    }
+                }
+                
+                video.src = url;
+                processingVideo.src = url;
+            }
+
+            video.onloadedmetadata = () => {
+                document.getElementById('emptyState').style.display = 'none';
+                document.getElementById('videoSection').style.display = 'grid';
+                document.getElementById('settingsPanel').style.display = 'block';
+                highlights = [];
+                basketRegions = [];
+                updateHighlightsDisplay();
+                updateRegionDisplay();
+                
+                // Initialize selection canvas
+                initSelectionCanvas();
+                
+                // Set up keyboard navigation
+                setupKeyboardNavigation();
+            };
+
+            video.onerror = () => {
+                showStatus('Error loading video. Check the URL or file format.', 'error');
+            };
+        }
+
+        function extractGoogleDriveId(url) {
+            const patterns = [
+                /\/d\/([a-zA-Z0-9-_]+)/,
+                /id=([a-zA-Z0-9-_]+)/,
+                /\/file\/d\/([a-zA-Z0-9-_]+)/
+            ];
+            
+            for (const pattern of patterns) {
+                const match = url.match(pattern);
+                if (match) return match[1];
+            }
+            return null;
+        }
+
+        function updateSettings() {
+            settings.minGap = parseInt(document.getElementById('minGap').value);
+            document.getElementById('minGapValue').textContent = settings.minGap + 's';
+        }
+
+        function initSelectionCanvas() {
+            const video = document.getElementById('videoPlayer');
+            selectionCanvas = document.getElementById('selectionCanvas');
+            selectionCtx = selectionCanvas.getContext('2d');
+            
+            // Match canvas size to video element
+            const updateCanvasSize = () => {
+                const rect = video.getBoundingClientRect();
+                selectionCanvas.width = rect.width;
+                selectionCanvas.height = rect.height;
+                redrawRegion();
+            };
+            
+            updateCanvasSize();
+            window.addEventListener('resize', updateCanvasSize);
+            
+            // Mouse event handlers
+            selectionCanvas.addEventListener('mousedown', startSelection);
+            selectionCanvas.addEventListener('mousemove', updateSelection);
+            selectionCanvas.addEventListener('mouseup', endSelection);
+            selectionCanvas.addEventListener('mouseleave', cancelSelection);
+        }
+
+        function toggleRegionSelection() {
+            if (basketRegions.length >= MAX_REGIONS && !isSelectingRegion) {
+                showStatus(`Maximum ${MAX_REGIONS} basket regions allowed. Clear one to add another.`, 'complete');
+                return;
+            }
+            
+            isSelectingRegion = !isSelectingRegion;
+            const canvas = document.getElementById('selectionCanvas');
+            const btn = document.getElementById('selectRegionBtn');
+            const help = document.getElementById('regionHelp');
+            
+            if (isSelectingRegion) {
+                canvas.classList.add('active');
+                btn.textContent = '✕ Cancel Selection';
+                btn.classList.remove('btn-secondary');
+                btn.classList.add('btn-primary');
+                help.style.display = 'block';
+                document.getElementById('videoPlayer').pause();
+            } else {
+                canvas.classList.remove('active');
+                btn.textContent = '📍 Add Basket Region';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-secondary');
+                help.style.display = 'none';
+            }
+        }
+
+        function startSelection(e) {
+            if (!isSelectingRegion) return;
+            
+            const rect = selectionCanvas.getBoundingClientRect();
+            selectionStart = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        function updateSelection(e) {
+            if (!isSelectingRegion || !selectionStart) return;
+            
+            const rect = selectionCanvas.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+            
+            // Clear and redraw existing regions first
+            selectionCtx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+            
+            // Redraw existing regions
+            if (basketRegions.length > 0) {
+                selectionCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                selectionCtx.fillRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+                
+                basketRegions.forEach(region => {
+                    const x = region.x * selectionCanvas.width;
+                    const y = region.y * selectionCanvas.height;
+                    const width = region.width * selectionCanvas.width;
+                    const height = region.height * selectionCanvas.height;
+                    
+                    selectionCtx.clearRect(x, y, width, height);
+                    selectionCtx.strokeStyle = region.color;
+                    selectionCtx.lineWidth = 2;
+                    selectionCtx.strokeRect(x, y, width, height);
+                });
+            } else {
+                // Dark overlay for first selection
+                selectionCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                selectionCtx.fillRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+            }
+            
+            const width = currentX - selectionStart.x;
+            const height = currentY - selectionStart.y;
+            
+            // Calculate if size is valid
+            const normalizedWidth = Math.abs(width) / selectionCanvas.width;
+            const normalizedHeight = Math.abs(height) / selectionCanvas.height;
+            const isValidSize = normalizedWidth > 0.03 && normalizedHeight > 0.03;
+            
+            // Clear the current selection rectangle
+            selectionCtx.clearRect(selectionStart.x, selectionStart.y, width, height);
+            
+            // Draw current selection box with next color (green if valid, red if too small)
+            const colors = ['#667eea', '#f5576c'];
+            const nextColor = isValidSize ? colors[basketRegions.length % colors.length] : '#ff4444';
+            
+            selectionCtx.strokeStyle = nextColor;
+            selectionCtx.lineWidth = 3;
+            selectionCtx.strokeRect(selectionStart.x, selectionStart.y, width, height);
+            
+            // Draw corner handles
+            const handleSize = 8;
+            selectionCtx.fillStyle = nextColor;
+            selectionCtx.fillRect(selectionStart.x - handleSize/2, selectionStart.y - handleSize/2, handleSize, handleSize);
+            selectionCtx.fillRect(selectionStart.x + width - handleSize/2, selectionStart.y - handleSize/2, handleSize, handleSize);
+            selectionCtx.fillRect(selectionStart.x - handleSize/2, selectionStart.y + height - handleSize/2, handleSize, handleSize);
+            selectionCtx.fillRect(selectionStart.x + width - handleSize/2, selectionStart.y + height - handleSize/2, handleSize, handleSize);
+            
+            // Show size feedback
+            if (!isValidSize) {
+                selectionCtx.fillStyle = 'rgba(255, 68, 68, 0.9)';
+                selectionCtx.fillRect(selectionStart.x, selectionStart.y - 25, 120, 20);
+                selectionCtx.fillStyle = 'white';
+                selectionCtx.font = 'bold 12px sans-serif';
+                selectionCtx.fillText('TOO SMALL!', selectionStart.x + 5, selectionStart.y - 10);
+            }
+        }
+
+        function endSelection(e) {
+            if (!isSelectingRegion || !selectionStart) return;
+            
+            const rect = selectionCanvas.getBoundingClientRect();
+            const endX = e.clientX - rect.left;
+            const endY = e.clientY - rect.top;
+            
+            // Calculate normalized coordinates (0-1 range)
+            const x = Math.min(selectionStart.x, endX) / selectionCanvas.width;
+            const y = Math.min(selectionStart.y, endY) / selectionCanvas.height;
+            const width = Math.abs(endX - selectionStart.x) / selectionCanvas.width;
+            const height = Math.abs(endY - selectionStart.y) / selectionCanvas.height;
+            
+            console.log('Selection dimensions:', { x, y, width, height });
+            
+            // Only save if region is reasonably sized (3% of frame = about 30x20 pixels on a 1000x700 video)
+            if (width > 0.03 && height > 0.03) {
+                const regionNumber = basketRegions.length + 1;
+                const colors = ['#667eea', '#f5576c'];
+                const colorIndex = basketRegions.length; // Get color BEFORE pushing
+                
+                const newRegion = { 
+                    x, y, width, height, 
+                    number: regionNumber,
+                    color: colors[colorIndex % colors.length]
+                };
+                
+                console.log('Adding region:', newRegion);
+                basketRegions.push(newRegion);
+                console.log('Total regions now:', basketRegions.length);
+                
+                updateRegionDisplay();
+                
+                showStatus(`Basket region ${regionNumber} added! ${basketRegions.length >= MAX_REGIONS ? 'Maximum regions reached.' : 'You can add another region if needed.'}`, 'complete');
+            } else {
+                console.log('Region too small, not saving');
+                showStatus('❌ Region too small! Please draw a larger box around the basket area.', 'complete');
+            }
+            
+            selectionStart = null;
+            toggleRegionSelection();
+        }
+
+        function cancelSelection(e) {
+            if (isSelectingRegion && selectionStart) {
+                selectionStart = null;
+                redrawRegion();
+            }
+        }
+
+        function clearLastRegion() {
+            if (basketRegions.length > 0) {
+                basketRegions.pop();
+                updateRegionDisplay();
+                showStatus('Last basket region removed.', 'complete');
+            }
+        }
+
+        function clearAllRegions() {
+            basketRegions = [];
+            updateRegionDisplay();
+            showStatus('All basket regions cleared. Will use full frame detection.', 'complete');
+        }
+
+        function updateRegionDisplay() {
+            const indicator = document.getElementById('regionIndicator');
+            const regionList = document.getElementById('regionList');
+            
+            console.log('updateRegionDisplay called, basketRegions:', basketRegions);
+            
+            if (basketRegions.length === 0) {
+                regionList.innerHTML = 'None selected';
+                indicator.classList.remove('set');
+                document.getElementById('clearRegionBtn').style.display = 'none';
+            } else {
+                const badges = basketRegions.map((r, i) => 
+                    `<span class="region-badge" style="background: ${r.color}">Region ${r.number}</span>`
+                ).join(' ');
+                console.log('Setting regionList to:', badges);
+                regionList.innerHTML = badges;
+                indicator.classList.add('set');
+                document.getElementById('clearRegionBtn').style.display = 'inline-flex';
+            }
+            
+            redrawRegion();
+            updateGuidedWorkflow();
+        }
+
+        function updateGuidedWorkflow() {
+            const stepNumber = document.getElementById('stepNumber');
+            const stepTitle = document.getElementById('stepTitle');
+            const stepDescription = document.getElementById('stepDescription');
+            const processBtn = document.getElementById('processBtn');
+            const setupGuide = document.getElementById('setupGuide');
+            
+            if (basketRegions.length === 0) {
+                // Step 1: No regions
+                stepNumber.textContent = '1';
+                stepTitle.textContent = 'Select First Basket Region';
+                stepDescription.textContent = 'Click "Add Basket Region" below and draw a box around the basket/rim';
+                processBtn.style.display = 'none';
+                setupGuide.style.display = 'block';
+            } else if (basketRegions.length === 1) {
+                // Step 2: One region, prompt for second
+                stepNumber.textContent = '2';
+                stepTitle.textContent = 'Add Second Basket? (Optional)';
+                stepDescription.textContent = 'If there\'s another basket visible in the video, add it now. Otherwise, click "Start Detection"';
+                processBtn.style.display = 'block';
+                processBtn.innerHTML = '<span>✓ Start Detection</span>';
+                setupGuide.style.display = 'block';
+            } else {
+                // Step 3: Ready to process
+                stepNumber.textContent = '✓';
+                stepTitle.textContent = 'Ready to Detect!';
+                stepDescription.textContent = 'Both basket regions selected. Click "Start Detection" to find all the baskets!';
+                processBtn.style.display = 'block';
+                processBtn.innerHTML = '<span>✓ Start Detection</span>';
+                setupGuide.style.display = 'block';
+            }
+        }
+
+        function startRegionSelection() {
+            if (basketRegions.length >= MAX_REGIONS) {
+                showStatus(`Maximum ${MAX_REGIONS} basket regions allowed.`, 'complete');
+                return;
+            }
+            toggleRegionSelection();
+        }
+
+        function skipToProcessing() {
+            document.getElementById('setupGuide').style.display = 'none';
+            document.getElementById('processBtn').style.display = 'block';
+            document.getElementById('processBtn').innerHTML = '<span>▶ Start Detection</span>';
+            showStatus('You can still add basket regions before processing for better accuracy.', 'complete');
+        }
+
+        function redrawRegion() {
+            if (!selectionCanvas) return;
+            
+            selectionCtx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+            
+            if (basketRegions.length > 0 && !isSelectingRegion) {
+                // Draw semi-transparent overlay
+                selectionCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                selectionCtx.fillRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+                
+                // Draw each saved region
+                basketRegions.forEach(region => {
+                    const x = region.x * selectionCanvas.width;
+                    const y = region.y * selectionCanvas.height;
+                    const width = region.width * selectionCanvas.width;
+                    const height = region.height * selectionCanvas.height;
+                    
+                    // Clear the region
+                    selectionCtx.clearRect(x, y, width, height);
+                    
+                    // Draw colored border
+                    selectionCtx.strokeStyle = region.color;
+                    selectionCtx.lineWidth = 3;
+                    selectionCtx.strokeRect(x, y, width, height);
+                    
+                    // Draw label with background
+                    const label = `BASKET ${region.number}`;
+                    selectionCtx.font = 'bold 12px sans-serif';
+                    const textWidth = selectionCtx.measureText(label).width;
+                    
+                    selectionCtx.fillStyle = region.color;
+                    selectionCtx.fillRect(x, y, textWidth + 10, 22);
+                    
+                    selectionCtx.fillStyle = 'white';
+                    selectionCtx.fillText(label, x + 5, y + 15);
+                });
+            }
+        }
+
+        async function processVideo() {
+            const video = document.getElementById('processingVideo'); // Use hidden video
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = 320;
+            canvas.height = 180;
+            
+            highlights = [];
+            document.getElementById('processBtn').disabled = true;
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('highlightsSection').style.display = 'block'; // Show immediately
+            
+            const regionMsg = basketRegions.length > 0 
+                ? ` Using MOTION-ONLY detection in ${basketRegions.length} region(s). Much faster and more accurate!` 
+                : ' Using full-frame color detection (slower, less accurate).';
+            showStatus('Processing video...' + regionMsg, 'processing');
+            
+            const duration = video.duration;
+            const fps = 3; // Sample 3 frames per second for efficiency
+            const interval = 1 / fps;
+            
+            let previousFrame = null;
+            let motionHistory = [];
+            let intensityHistory = [];
+            let framesProcessed = 0;
+            
+            for (let time = 0; time < duration; time += interval) {
+                video.currentTime = time;
+                
+                await new Promise(resolve => {
+                    video.onseeked = () => resolve();
+                });
+                
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                if (previousFrame) {
+                    const motion = detectMotion(previousFrame, currentFrame);
+                    
+                    // Only do color detection if no regions (full frame mode)
+                    const rimScore = basketRegions.length === 0 ? detectRimArea(currentFrame) : 0;
+                    const ballScore = basketRegions.length === 0 ? detectOrangeObject(currentFrame) : 0;
+                    
+                    motionHistory.push(motion);
+                    intensityHistory.push({ rim: rimScore, ball: ballScore });
+                    
+                    // Keep last 15 frames (5 seconds at 3fps)
+                    if (motionHistory.length > 15) {
+                        motionHistory.shift();
+                        intensityHistory.shift();
+                    }
+                    
+                    // Detect potential basket
+                    if (motionHistory.length >= 6) {
+                        const detectionResult = calculateBasketScore(motionHistory, intensityHistory, time);
+                        
+                        if (detectionResult.passes) {
+                            const lastHighlight = highlights[highlights.length - 1];
+                            if (!lastHighlight || time - lastHighlight.timestamp > settings.minGap) {
+                                // Capture thumbnail with detection data
+                                const thumbnail = captureThumbnail(video, canvas, ctx, {
+                                    motion: detectionResult.motion,
+                                    rim: detectionResult.rim,
+                                    ball: detectionResult.ball,
+                                    score: detectionResult.score,
+                                    regionIndex: 0
+                                });
+                                
+                                highlights.push({
+                                    timestamp: time,
+                                    confidence: Math.min(100, detectionResult.score),
+                                    thumbnail: thumbnail,
+                                    reasons: detectionResult.reasons,
+                                    debugData: {
+                                        motion: detectionResult.motion,
+                                        rim: detectionResult.rim,
+                                        ball: detectionResult.ball,
+                                        motionDrop: detectionResult.motionDrop,
+                                        rimVisible: detectionResult.rimVisible,
+                                        ballPresent: detectionResult.ballPresent
+                                    }
+                                });
+                                
+                                // Update UI in real-time
+                                updateHighlightsDisplay();
+                                document.getElementById('basketsFound').textContent = highlights.length;
+                                
+                                // Start playing clips as soon as we get the first one
+                                if (highlights.length === 1 && !isPlayingAll) {
+                                    // Hide the setup guide
+                                    document.getElementById('setupGuide').style.display = 'none';
+                                    
+                                    // Start playing immediately
+                                    setTimeout(() => {
+                                        playAllHighlights();
+                                    }, 500); // Small delay to let UI update
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                previousFrame = currentFrame;
+                framesProcessed++;
+                
+                const progress = Math.floor((time / duration) * 100);
+                document.getElementById('progressFill').style.width = progress + '%';
+                document.getElementById('progressText').textContent = progress + '%';
+                document.getElementById('framesAnalyzed').textContent = framesProcessed;
+                document.getElementById('currentProcessTime').textContent = formatTime(time);
+                
+                // Allow UI to update every 30 frames
+                if (framesProcessed % 30 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
+            
+            document.getElementById('processBtn').disabled = false;
+            document.getElementById('progressContainer').style.display = 'none';
+            document.getElementById('setupGuide').style.display = 'none';
+            
+            video.currentTime = 0;
+            updateHighlightsDisplay();
+            
+            // Only auto-start if not already playing (might have started on first clip)
+            if (highlights.length > 0 && !isPlayingAll) {
+                showStatus(`Processing complete! Found ${highlights.length} clip(s). Playing now...`, 'complete');
+                setTimeout(() => {
+                    playAllHighlights();
+                }, 1000);
+            } else if (isPlayingAll) {
+                showStatus(`Processing complete! Found ${highlights.length} clip(s) total.`, 'complete');
+            } else {
+                showStatus(`Processing complete! No clips detected.`, 'complete');
+            }
+        }
+
+        function detectMotion(frame1, frame2) {
+            const data1 = frame1.data;
+            const data2 = frame2.data;
+            let diff = 0;
+            let count = 0;
+            
+            const width = frame1.width;
+            const height = frame1.height;
+            
+            // If regions are set, analyze each region and return max motion
+            if (basketRegions.length > 0) {
+                let maxMotion = 0;
+                
+                basketRegions.forEach(region => {
+                    const startX = Math.floor(region.x * width);
+                    const startY = Math.floor(region.y * height);
+                    const endX = Math.floor((region.x + region.width) * width);
+                    const endY = Math.floor((region.y + region.height) * height);
+                    
+                    let regionDiff = 0;
+                    let regionCount = 0;
+                    
+                    for (let y = startY; y < endY; y += 2) {
+                        for (let x = startX; x < endX; x += 2) {
+                            const idx = (y * width + x) * 4;
+                            const r = Math.abs(data1[idx] - data2[idx]);
+                            const g = Math.abs(data1[idx + 1] - data2[idx + 1]);
+                            const b = Math.abs(data1[idx + 2] - data2[idx + 2]);
+                            regionDiff += (r + g + b) / 3;
+                            regionCount++;
+                        }
+                    }
+                    
+                    const regionMotion = regionCount > 0 ? regionDiff / regionCount : 0;
+                    maxMotion = Math.max(maxMotion, regionMotion);
+                });
+                
+                return maxMotion;
+            } else {
+                // Sample pixels across full frame
+                for (let i = 0; i < data1.length; i += 40) {
+                    const r = Math.abs(data1[i] - data2[i]);
+                    const g = Math.abs(data1[i + 1] - data2[i + 1]);
+                    const b = Math.abs(data1[i + 2] - data2[i + 2]);
+                    diff += (r + g + b) / 3;
+                    count++;
+                }
+                
+                return diff / count;
+            }
+        }
+
+        function detectRimArea(imageData) {
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            
+            let orangeRedPixels = 0;
+            let totalChecked = 0;
+            
+            if (basketRegions.length > 0) {
+                // Analyze all regions and return max score
+                let maxScore = 0;
+                
+                basketRegions.forEach(region => {
+                    const startX = Math.floor(region.x * width);
+                    const startY = Math.floor(region.y * height);
+                    const endX = Math.floor((region.x + region.width) * width);
+                    const endY = Math.floor((region.y + region.height) * height);
+                    
+                    let regionOrange = 0;
+                    let regionChecked = 0;
+                    
+                    for (let y = startY; y < endY; y += 2) {
+                        for (let x = startX; x < endX; x += 2) {
+                            const idx = (y * width + x) * 4;
+                            const r = data[idx];
+                            const g = data[idx + 1];
+                            const b = data[idx + 2];
+                            
+                            if (r > 140 && g > 40 && g < 160 && b < 100) {
+                                regionOrange++;
+                            }
+                            regionChecked++;
+                        }
+                    }
+                    
+                    const regionScore = regionChecked > 0 ? (regionOrange / regionChecked) * 1000 : 0;
+                    maxScore = Math.max(maxScore, regionScore);
+                });
+                
+                return maxScore;
+            } else {
+                // Check top half for orange/red (rim)
+                const topHalf = Math.floor(height / 2);
+                
+                for (let y = 0; y < topHalf; y += 2) {
+                    for (let x = 0; x < width; x += 2) {
+                        const idx = (y * width + x) * 4;
+                        const r = data[idx];
+                        const g = data[idx + 1];
+                        const b = data[idx + 2];
+                        
+                        if (r > 140 && g > 40 && g < 160 && b < 100) {
+                            orangeRedPixels++;
+                        }
+                        totalChecked++;
+                    }
+                }
+                
+                return (orangeRedPixels / totalChecked) * 1000;
+            }
+        }
+
+        function detectOrangeObject(imageData) {
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            
+            let orangePixels = 0;
+            let totalChecked = 0;
+            
+            if (basketRegions.length > 0) {
+                // Analyze all regions and return max score
+                let maxScore = 0;
+                
+                basketRegions.forEach(region => {
+                    const startX = Math.floor(region.x * width);
+                    const startY = Math.floor(region.y * height);
+                    const endX = Math.floor((region.x + region.width) * width);
+                    const endY = Math.floor((region.y + region.height) * height);
+                    
+                    let regionOrange = 0;
+                    let regionChecked = 0;
+                    
+                    for (let y = startY; y < endY; y += 2) {
+                        for (let x = startX; x < endX; x += 2) {
+                            const idx = (y * width + x) * 4;
+                            const r = data[idx];
+                            const g = data[idx + 1];
+                            const b = data[idx + 2];
+                            
+                            if (r > 180 && g > 80 && g < 180 && b < 120 && r > g && g > b) {
+                                regionOrange++;
+                            }
+                            regionChecked++;
+                        }
+                    }
+                    
+                    const regionScore = regionChecked > 0 ? (regionOrange / regionChecked) * 1000 : 0;
+                    maxScore = Math.max(maxScore, regionScore);
+                });
+                
+                return maxScore;
+            } else {
+                // Check middle area for orange ball
+                const startY = Math.floor(height * 0.2);
+                const endY = Math.floor(height * 0.8);
+                
+                for (let y = startY; y < endY; y += 2) {
+                    for (let x = 0; x < width; x += 2) {
+                        const idx = (y * width + x) * 4;
+                        const r = data[idx];
+                        const g = data[idx + 1];
+                        const b = data[idx + 2];
+                        
+                        if (r > 180 && g > 80 && g < 180 && b < 120 && r > g && g > b) {
+                            orangePixels++;
+                        }
+                        totalChecked++;
+                    }
+                }
+                
+                return (orangePixels / totalChecked) * 1000;
+            }
+        }
+
+        function calculateBasketScore(motionHistory, intensityHistory, time) {
+            // If no regions selected, require all signals
+            if (basketRegions.length === 0) {
+                const recentMotion = motionHistory.slice(-3);
+                const earlierMotion = motionHistory.slice(0, -3);
+                
+                const avgRecent = recentMotion.reduce((a, b) => a + b) / recentMotion.length;
+                const avgEarlier = earlierMotion.reduce((a, b) => a + b) / earlierMotion.length;
+                
+                const recentIntensity = intensityHistory.slice(-3);
+                const avgRim = recentIntensity.reduce((a, b) => a + b.rim, 0) / recentIntensity.length;
+                const avgBall = recentIntensity.reduce((a, b) => a + b.ball, 0) / recentIntensity.length;
+                
+                // Fixed thresholds for full-frame mode
+                const motionDrop = avgEarlier > avgRecent * 1.3;
+                const rimVisible = avgRim > 5;
+                const ballPresent = avgBall > 3;
+                
+                let score = 0;
+                let reasons = [];
+                
+                if (motionDrop) {
+                    score += 30;
+                    reasons.push('Motion Drop');
+                }
+                if (rimVisible) {
+                    score += 40;
+                    reasons.push('Rim Detected');
+                }
+                if (ballPresent) {
+                    score += 30;
+                    reasons.push('Ball Present');
+                }
+                
+                return {
+                    score: score,
+                    motion: avgRecent,
+                    rim: avgRim,
+                    ball: avgBall,
+                    motionDrop: motionDrop,
+                    rimVisible: rimVisible,
+                    ballPresent: ballPresent,
+                    reasons: reasons,
+                    passes: score >= 40  // Fixed min score
+                };
+            }
+            
+            // WITH REGIONS: Focus ONLY on motion changes - much simpler!
+            const recentMotion = motionHistory.slice(-3);
+            const earlierMotion = motionHistory.slice(-6, -3); // Compare to slightly earlier window
+            
+            const avgRecent = recentMotion.reduce((a, b) => a + b) / recentMotion.length;
+            const avgEarlier = earlierMotion.reduce((a, b) => a + b) / earlierMotion.length;
+            
+            // Simple motion spike detection: look for increase then decrease
+            const motionSpike = avgEarlier < avgRecent * 0.7; // Motion increased
+            const motionDrop = avgRecent < motionHistory.slice(-6, -3).reduce((a,b)=>a+b)/3 * 0.8; // Then decreased
+            
+            let score = 0;
+            let reasons = [];
+            
+            // Primary signal: motion changed significantly in basket area
+            if (avgRecent > 5) { // Some motion present
+                score += 50;
+                reasons.push('Motion Detected');
+            }
+            
+            // Bonus: motion pattern suggests ball movement
+            if (motionSpike || motionDrop) {
+                score += 30;
+                reasons.push('Motion Pattern');
+            }
+            
+            // Fixed sensitivity multiplier and threshold
+            score = score * 1.0;  // No multiplier needed
+            
+            return {
+                score: score,
+                motion: avgRecent,
+                rim: 0,
+                ball: 0,
+                motionDrop: motionDrop,
+                rimVisible: false,
+                ballPresent: false,
+                reasons: reasons,
+                passes: score >= 40  // Fixed minimum score
+            };
+        }
+
+        function captureThumbnail(video, canvas, ctx, detectionData) {
+            // Draw full frame first
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // If there are regions, crop to show the region where detection happened
+            if (basketRegions.length > 0) {
+                const region = detectionData.regionIndex !== undefined 
+                    ? basketRegions[detectionData.regionIndex] 
+                    : basketRegions[0];
+                
+                const sx = Math.floor(region.x * canvas.width);
+                const sy = Math.floor(region.y * canvas.height);
+                const sw = Math.floor(region.width * canvas.width);
+                const sh = Math.floor(region.height * canvas.height);
+                
+                // Create a thumbnail canvas
+                const thumbCanvas = document.createElement('canvas');
+                thumbCanvas.width = 320;
+                thumbCanvas.height = 240;
+                const thumbCtx = thumbCanvas.getContext('2d');
+                
+                // Draw the cropped region scaled to thumbnail size
+                thumbCtx.drawImage(
+                    video,
+                    sx, sy, sw, sh,  // Source
+                    0, 0, 320, 240   // Destination
+                );
+                
+                // Add debug overlay showing detection scores
+                thumbCtx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+                thumbCtx.fillRect(0, 200, 320, 40);
+                
+                thumbCtx.fillStyle = 'white';
+                thumbCtx.font = 'bold 13px monospace';
+                thumbCtx.fillText(`Motion: ${detectionData.motion.toFixed(1)}`, 8, 218);
+                thumbCtx.fillText(`Rim: ${detectionData.rim.toFixed(1)}`, 8, 233);
+                thumbCtx.fillText(`Ball: ${detectionData.ball.toFixed(1)}`, 168, 218);
+                thumbCtx.fillText(`Score: ${detectionData.score.toFixed(0)}`, 168, 233);
+                
+                return thumbCanvas.toDataURL('image/jpeg', 0.8);
+            }
+            
+            // Return full frame thumbnail if no regions
+            const thumbCanvas = document.createElement('canvas');
+            thumbCanvas.width = 320;
+            thumbCanvas.height = 240;
+            const thumbCtx = thumbCanvas.getContext('2d');
+            thumbCtx.drawImage(canvas, 0, 0, 320, 240);
+            
+            // Add debug info
+            thumbCtx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            thumbCtx.fillRect(0, 200, 320, 40);
+            thumbCtx.fillStyle = 'white';
+            thumbCtx.font = 'bold 13px monospace';
+            thumbCtx.fillText(`Motion: ${detectionData.motion.toFixed(1)}`, 8, 218);
+            thumbCtx.fillText(`Rim: ${detectionData.rim.toFixed(1)}`, 8, 233);
+            thumbCtx.fillText(`Ball: ${detectionData.ball.toFixed(1)}`, 168, 218);
+            thumbCtx.fillText(`Score: ${detectionData.score.toFixed(0)}`, 168, 233);
+            
+            return thumbCanvas.toDataURL('image/jpeg', 0.8);
+        }
+
+        function updateHighlightsDisplay() {
+            const section = document.getElementById('highlightsSection');
+            const list = document.getElementById('highlightsList');
+            const count = document.getElementById('highlightCount');
+            
+            if (highlights.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            section.style.display = 'block';
+            count.textContent = highlights.length + (highlights.length === 1 ? ' basket' : ' baskets');
+            
+            list.innerHTML = highlights.map((h, i) => {
+                const reasons = h.reasons ? h.reasons.join(', ') : 'Unknown';
+                const debugData = h.debugData || {};
+                
+                return `
+                <div class="highlight-item" onclick="jumpToHighlight(${h.timestamp})" title="Click to play">
+                    ${h.thumbnail ? `
+                        <div class="highlight-thumbnail">
+                            <img src="${h.thumbnail}" alt="Basket at ${formatTime(h.timestamp)}">
+                            <div class="play-icon">▶</div>
+                        </div>
+                    ` : ''}
+                    <div class="highlight-number">${i + 1}</div>
+                    <div class="highlight-info">
+                        <div class="highlight-time">${formatTime(h.timestamp)}</div>
+                        <div>
+                            <span class="confidence">Score: ${Math.round(h.confidence)}</span>
+                        </div>
+                        <div style="font-size: 10px; color: #667eea; margin-top: 4px;">
+                            ${reasons}
+                        </div>
+                        ${debugData.motion !== undefined ? `
+                        <div style="font-size: 9px; color: #999; margin-top: 4px; font-family: monospace;">
+                            M:${debugData.motion.toFixed(1)} 
+                            R:${debugData.rim.toFixed(1)} 
+                            B:${debugData.ball.toFixed(1)}
+                            ${debugData.motionDrop ? '📉' : ''}
+                            ${debugData.rimVisible ? '🎯' : ''}
+                            ${debugData.ballPresent ? '🏀' : ''}
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `}).join('');
+            
+            // Show Play All button when highlights are available
+            const playAllBtn = document.getElementById('playAllBtn');
+            if (playAllBtn) {
+                playAllBtn.style.display = highlights.length > 0 ? 'block' : 'none';
+            }
+            
+            // Enable playback controls when highlights are available
+            enablePlaybackControls();
+        }
+
+        function jumpToHighlight(timestamp) {
+            const video = document.getElementById('videoPlayer');
+            const startTime = Math.max(0, timestamp - 3); // Start 3 seconds before
+            const endTime = timestamp + 1; // Stop 1 second after
+            
+            video.currentTime = startTime;
+            video.play();
+            
+            // Set up listener to stop at end time
+            const stopListener = () => {
+                if (video.currentTime >= endTime) {
+                    video.pause();
+                    video.removeEventListener('timeupdate', stopListener);
+                }
+            };
+            
+            video.addEventListener('timeupdate', stopListener);
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            const ms = Math.floor((seconds % 1) * 10);
+            return `${mins}:${secs.toString().padStart(2, '0')}.${ms}`;
+        }
+
+        function exportTimestamps() {
+            const text = highlights.map((h, i) => 
+                `${i + 1}. ${formatTime(h.timestamp)} (${Math.round(h.confidence)}% confidence)`
+            ).join('\n');
+            
+            navigator.clipboard.writeText(text).then(() => {
+                showStatus('Timestamps copied to clipboard!', 'complete');
+            });
+        }
+
+        function exportJSON() {
+            const data = {
+                videoSource: currentTab === 'file' ? 'local file' : document.getElementById('videoUrl').value,
+                processedDate: new Date().toISOString(),
+                totalHighlights: highlights.length,
+                highlights: highlights.map((h, i) => ({
+                    number: i + 1,
+                    timestamp: h.timestamp,
+                    formattedTime: formatTime(h.timestamp),
+                    confidence: Math.round(h.confidence)
+                }))
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `basketball-highlights-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function playPreviousClip() {
+            if (currentHighlightIndex > 0) {
+                currentHighlightIndex--;
+                playNextHighlight();
+            }
+        }
+
+        function playNextClip() {
+            if (currentHighlightIndex < highlights.length - 1) {
+                currentHighlightIndex++;
+                playNextHighlight();
+            } else {
+                // Loop back to start
+                currentHighlightIndex = 0;
+                playNextHighlight();
+            }
+        }
+
+        function playAllHighlights() {
+            if (highlights.length === 0) return;
+            
+            isPlayingAll = true;
+            currentHighlightIndex = 0;
+            
+            playNextHighlight();
+        }
+
+        function playNextHighlight() {
+            if (!isPlayingAll || currentHighlightIndex >= highlights.length) {
+                stopPlayingAll();
+                return;
+            }
+            
+            const highlight = highlights[currentHighlightIndex];
+            const video = document.getElementById('videoPlayer');
+            
+            // Show overlay
+            const overlay = document.getElementById('videoOverlay');
+            console.log('Showing overlay, element:', overlay);
+            overlay.style.display = 'block';
+            document.getElementById('overlayClipNumber').textContent = currentHighlightIndex + 1;
+            document.getElementById('overlayTotalClips').textContent = highlights.length;
+            document.getElementById('overlayTimestamp').textContent = formatTime(highlight.timestamp);
+            console.log('Overlay should now be visible');
+            
+            // Highlight the current item in the list
+            document.querySelectorAll('.highlight-item').forEach((item, idx) => {
+                item.classList.toggle('playing', idx === currentHighlightIndex);
+            });
+            
+            // Scroll to current highlight in theater mode WITHOUT focus jump
+            if (isTheaterMode) {
+                const currentItem = document.querySelectorAll('.highlight-item')[currentHighlightIndex];
+                if (currentItem) {
+                    const container = document.getElementById('highlightsList');
+                    const itemRect = currentItem.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+                    
+                    // Calculate scroll position to center the item
+                    const scrollLeft = currentItem.offsetLeft - (containerRect.width / 2) + (itemRect.width / 2);
+                    container.scrollLeft = scrollLeft;
+                }
+            }
+            
+            const startTime = Math.max(0, highlight.timestamp - 3);
+            const endTime = highlight.timestamp + 1;
+            const clipDuration = endTime - startTime;
+            
+            document.getElementById('overlayClipDuration').textContent = clipDuration.toFixed(1) + 's';
+            
+            video.currentTime = startTime;
+            video.play();
+            
+            // Remove any existing listener
+            if (playAllListener) {
+                video.removeEventListener('timeupdate', playAllListener);
+            }
+            
+            // Set up listener to move to next highlight and update progress
+            playAllListener = () => {
+                const elapsed = video.currentTime - startTime;
+                const progress = Math.min(100, (elapsed / clipDuration) * 100);
+                
+                // Update overlay progress
+                document.getElementById('overlayProgress').style.width = progress + '%';
+                document.getElementById('overlayClipTime').textContent = elapsed.toFixed(1) + 's';
+                
+                if (video.currentTime >= endTime) {
+                    video.removeEventListener('timeupdate', playAllListener);
+                    currentHighlightIndex++;
+                    
+                    // Small pause between highlights
+                    setTimeout(() => {
+                        if (isPlayingAll) {
+                            playNextHighlight();
+                        }
+                    }, 300);
+                }
+            };
+            
+            video.addEventListener('timeupdate', playAllListener);
+        }
+
+        function stopPlayingAll() {
+            isPlayingAll = false;
+            const video = document.getElementById('videoPlayer');
+            
+            if (playAllListener) {
+                video.removeEventListener('timeupdate', playAllListener);
+                playAllListener = null;
+            }
+            
+            video.pause();
+            
+            // Hide overlay
+            document.getElementById('videoOverlay').style.display = 'none';
+            
+            // Remove playing class from all items
+            document.querySelectorAll('.highlight-item').forEach(item => {
+                item.classList.remove('playing');
+            });
+        }
+
+        function enablePlaybackControls() {
+            // No longer needed - removed mode buttons
+        }
+
+        function setupKeyboardNavigation() {
+            document.addEventListener('keydown', (e) => {
+                // Only handle if we have highlights and not typing in an input
+                if (highlights.length === 0 || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                    return;
+                }
+                
+                const video = document.getElementById('videoPlayer');
+                
+                switch(e.key) {
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        playNextClip();
+                        break;
+                        
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        playPreviousClip();
+                        break;
+                        
+                    case ' ':
+                        e.preventDefault();
+                        if (video.paused) {
+                            if (!isPlayingAll && highlights.length > 0) {
+                                playAllHighlights();
+                            } else {
+                                video.play();
+                            }
+                        } else {
+                            video.pause();
+                        }
+                        break;
+                }
+            });
+        }
+
+        function showStatus(message, type) {
+            // Status messages hidden - do nothing
+            return;
+        }
+    </script>
+</body>
+</html>
