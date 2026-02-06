@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Basketball Highlights Detector</title>
     <style>
         * {
@@ -16,6 +16,8 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
         }
 
         .container {
@@ -154,6 +156,131 @@
             }
         }
 
+        /* Mobile-specific styles for phones */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .container {
+                border-radius: 8px;
+            }
+            
+            .header {
+                padding: 15px 20px !important;
+            }
+            
+            .header h1 {
+                font-size: 20px !important;
+            }
+            
+            .content {
+                padding: 15px !important;
+            }
+            
+            .upload-section {
+                padding: 20px !important;
+            }
+            
+            .tabs {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .tab {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .btn {
+                padding: 12px 20px !important;
+                font-size: 14px !important;
+                width: 100%;
+            }
+            
+            .video-section {
+                padding: 15px !important;
+            }
+            
+            .settings {
+                padding: 15px !important;
+            }
+            
+            /* Make sure video player is visible */
+            .video-container {
+                height: auto !important;
+                min-height: 200px;
+            }
+            
+            .video-container video {
+                width: 100%;
+                height: auto;
+            }
+            
+            /* Stack highlights vertically on mobile */
+            .highlights-container {
+                max-height: 400px;
+            }
+            
+            .highlight-item {
+                flex-direction: row;
+                padding: 10px;
+            }
+            
+            .highlight-thumbnail {
+                width: 100px !important;
+                height: 75px !important;
+            }
+            
+            /* Make overlay more compact on mobile */
+            #videoOverlay {
+                padding: 8px 12px !important;
+                font-size: 12px !important;
+                bottom: 50px !important;
+            }
+            
+            #videoOverlay button {
+                width: 28px !important;
+                height: 28px !important;
+                font-size: 14px !important;
+            }
+            
+            /* Guided setup on mobile */
+            #setupGuide {
+                padding: 15px !important;
+                font-size: 14px;
+            }
+            
+            #setupGuide .btn {
+                font-size: 13px !important;
+                padding: 10px 15px !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 5px;
+            }
+            
+            .header h1 {
+                font-size: 18px !important;
+            }
+            
+            .content {
+                padding: 10px !important;
+            }
+            
+            .upload-section {
+                padding: 15px !important;
+            }
+            
+            /* Even more compact on very small screens */
+            #videoOverlay {
+                font-size: 11px !important;
+                padding: 6px 10px !important;
+            }
+        }
+
         .video-column {
             position: sticky;
             top: 20px;
@@ -237,6 +364,8 @@
             height: 100%;
             cursor: crosshair;
             display: none;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         #selectionCanvas.active {
@@ -681,10 +810,24 @@
                         </button>
                     </div>
                     <div class="help-text" id="regionHelp" style="display: none; background: #f0f4ff; padding: 12px; border-radius: 8px; margin-top: 10px; font-size: 13px; color: #333;">
-                        <strong>📱 Mobile Instructions:</strong><br>
-                        1️⃣ Tap the <strong>TOP-LEFT</strong> corner of the basket area<br>
-                        2️⃣ Then tap the <strong>BOTTOM-RIGHT</strong> corner<br>
-                        A box will appear showing your selection!
+                        <strong>📱 Select Region Size:</strong><br>
+                        <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+                            <button onclick="setRegionSize('small')" class="btn btn-secondary" style="flex: 1; min-width: 60px; padding: 8px;">
+                                Small
+                            </button>
+                            <button onclick="setRegionSize('medium')" class="btn btn-secondary" style="flex: 1; min-width: 60px; padding: 8px;">
+                                Medium
+                            </button>
+                            <button onclick="setRegionSize('large')" class="btn btn-secondary" style="flex: 1; min-width: 60px; padding: 8px;">
+                                Large
+                            </button>
+                        </div>
+                        <div style="margin-top: 8px; color: #667eea; font-weight: 600;">
+                            <span id="regionSizeText">Size: Medium</span>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            👆 Now <strong>TAP the CENTER</strong> of the basket on the video
+                        </div>
                     </div>
                     
                     <button class="btn btn-primary" onclick="processVideo()" id="processBtn" style="margin-top: 15px; width: 100%; display: none;">
@@ -881,14 +1024,34 @@
             window.addEventListener('resize', updateCanvasSize);
             
             // Mouse event handlers
-            // Use click and touch events for mobile-friendly two-tap selection
+            // Use click and touch events for mobile-friendly single-tap selection
             selectionCanvas.addEventListener('click', handleTapSelection);
             selectionCanvas.addEventListener('touchend', handleTapSelection);
+            selectionCanvas.addEventListener('touchmove', handlePreviewMove);
+            selectionCanvas.addEventListener('mousemove', handlePreviewMove);
         }
 
-        // Two-tap selection for mobile-friendly basket region selection
-        let firstCorner = null;
-        let secondCorner = null;
+        // Single-tap with preset size for mobile-friendly basket region selection
+        let selectedRegionSize = 'medium';
+        const regionSizes = {
+            small: { width: 0.15, height: 0.20 },   // 15% x 20% of video
+            medium: { width: 0.20, height: 0.25 },  // 20% x 25% of video
+            large: { width: 0.25, height: 0.30 }    // 25% x 30% of video
+        };
+
+        function setRegionSize(size) {
+            selectedRegionSize = size;
+            const sizeText = document.getElementById('regionSizeText');
+            sizeText.textContent = `Size: ${size.charAt(0).toUpperCase() + size.slice(1)}`;
+            
+            // Update button states
+            document.querySelectorAll('#regionHelp button').forEach(btn => {
+                btn.style.background = '';
+                btn.style.color = '';
+            });
+            event.target.style.background = '#667eea';
+            event.target.style.color = 'white';
+        }
 
         function toggleRegionSelection() {
             if (basketRegions.length >= MAX_REGIONS && !isSelectingRegion) {
@@ -896,8 +1059,6 @@
             }
             
             isSelectingRegion = !isSelectingRegion;
-            firstCorner = null;
-            secondCorner = null;
             
             const canvas = document.getElementById('selectionCanvas');
             const btn = document.getElementById('selectRegionBtn');
@@ -915,6 +1076,9 @@
                 redrawRegion();
                 selectionCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
                 selectionCtx.fillRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+                
+                // Draw preview box that follows cursor/touch
+                drawPreviewBox();
             } else {
                 canvas.classList.remove('active');
                 btn.textContent = '📍 Add Basket Region';
@@ -925,81 +1089,99 @@
             }
         }
 
+        let previewPosition = null;
+
+        function drawPreviewBox() {
+            if (!isSelectingRegion || !previewPosition) return;
+            
+            // Redraw base
+            redrawRegion();
+            selectionCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            selectionCtx.fillRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+            
+            // Draw preview box centered on cursor
+            const size = regionSizes[selectedRegionSize];
+            const boxWidth = size.width * selectionCanvas.width;
+            const boxHeight = size.height * selectionCanvas.height;
+            const x = previewPosition.x - boxWidth / 2;
+            const y = previewPosition.y - boxHeight / 2;
+            
+            const colors = ['#667eea', '#f5576c'];
+            const nextColor = colors[basketRegions.length % colors.length];
+            
+            // Clear preview area
+            selectionCtx.clearRect(x, y, boxWidth, boxHeight);
+            
+            // Draw border
+            selectionCtx.strokeStyle = nextColor;
+            selectionCtx.lineWidth = 3;
+            selectionCtx.strokeRect(x, y, boxWidth, boxHeight);
+            
+            // Draw center crosshair
+            selectionCtx.strokeStyle = nextColor;
+            selectionCtx.lineWidth = 2;
+            selectionCtx.beginPath();
+            selectionCtx.moveTo(previewPosition.x - 10, previewPosition.y);
+            selectionCtx.lineTo(previewPosition.x + 10, previewPosition.y);
+            selectionCtx.moveTo(previewPosition.x, previewPosition.y - 10);
+            selectionCtx.lineTo(previewPosition.x, previewPosition.y + 10);
+            selectionCtx.stroke();
+        }
+
+        function handlePreviewMove(e) {
+            if (!isSelectingRegion) return;
+            
+            e.preventDefault();
+            const rect = selectionCanvas.getBoundingClientRect();
+            const touch = e.touches ? e.touches[0] : e;
+            const x = (touch.clientX || e.clientX) - rect.left;
+            const y = (touch.clientY || e.clientY) - rect.top;
+            
+            previewPosition = { x, y };
+            drawPreviewBox();
+        }
+
         function handleTapSelection(e) {
             if (!isSelectingRegion) return;
             
             e.preventDefault();
             
             const rect = selectionCanvas.getBoundingClientRect();
-            const touch = e.touches ? e.touches[0] : e;
-            const x = (touch.clientX || e.clientX) - rect.left;
-            const y = (touch.clientY || e.clientY) - rect.top;
+            const touch = e.changedTouches ? e.changedTouches[0] : e;
+            const centerX = (touch.clientX || e.clientX) - rect.left;
+            const centerY = (touch.clientY || e.clientY) - rect.top;
             
-            if (!firstCorner) {
-                // First tap - store top-left corner
-                firstCorner = { x, y };
-                
-                // Draw indicator
-                redrawRegion();
-                selectionCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                selectionCtx.fillRect(0, 0, selectionCanvas.width, selectionCanvas.height);
-                
-                // Draw first corner marker
-                const colors = ['#667eea', '#f5576c'];
-                const nextColor = colors[basketRegions.length % colors.length];
-                selectionCtx.fillStyle = nextColor;
-                selectionCtx.beginPath();
-                selectionCtx.arc(firstCorner.x, firstCorner.y, 10, 0, Math.PI * 2);
-                selectionCtx.fill();
-                
-                // Draw text instruction
-                selectionCtx.fillStyle = 'white';
-                selectionCtx.font = 'bold 16px sans-serif';
-                selectionCtx.fillText('Now tap BOTTOM-RIGHT corner', 20, 30);
-                
-            } else {
-                // Second tap - create region
-                secondCorner = { x, y };
-                
-                // Calculate normalized coordinates
-                const x1 = Math.min(firstCorner.x, secondCorner.x) / selectionCanvas.width;
-                const y1 = Math.min(firstCorner.y, secondCorner.y) / selectionCanvas.height;
-                const x2 = Math.max(firstCorner.x, secondCorner.x) / selectionCanvas.width;
-                const y2 = Math.max(firstCorner.y, secondCorner.y) / selectionCanvas.height;
-                
-                const width = x2 - x1;
-                const height = y2 - y1;
-                
-                console.log('Selection dimensions:', { x: x1, y: y1, width, height });
-                
-                // Check if size is valid
-                if (width > 0.03 && height > 0.03) {
-                    const regionNumber = basketRegions.length + 1;
-                    const colors = ['#667eea', '#f5576c'];
-                    const colorIndex = basketRegions.length;
-                    
-                    const newRegion = { 
-                        x: x1, 
-                        y: y1, 
-                        width, 
-                        height, 
-                        number: regionNumber,
-                        color: colors[colorIndex % colors.length]
-                    };
-                    
-                    console.log('Adding region:', newRegion);
-                    basketRegions.push(newRegion);
-                    console.log('Total regions now:', basketRegions.length);
-                    
-                    updateRegionDisplay();
-                } else {
-                    console.log('Region too small, not saving');
-                }
-                
-                firstCorner = null;
-                secondCorner = null;
-                toggleRegionSelection();
-            }
+            // Create region centered on tap position
+            const size = regionSizes[selectedRegionSize];
+            const boxWidth = size.width;
+            const boxHeight = size.height;
+            
+            // Calculate top-left corner (normalized)
+            const x = Math.max(0, Math.min(1 - boxWidth, (centerX / selectionCanvas.width) - boxWidth / 2));
+            const y = Math.max(0, Math.min(1 - boxHeight, (centerY / selectionCanvas.height) - boxHeight / 2));
+            
+            console.log('Creating region at:', { x, y, width: boxWidth, height: boxHeight });
+            
+            const regionNumber = basketRegions.length + 1;
+            const colors = ['#667eea', '#f5576c'];
+            const colorIndex = basketRegions.length;
+            
+            const newRegion = { 
+                x, 
+                y, 
+                width: boxWidth, 
+                height: boxHeight, 
+                number: regionNumber,
+                color: colors[colorIndex % colors.length]
+            };
+            
+            console.log('Adding region:', newRegion);
+            basketRegions.push(newRegion);
+            console.log('Total regions now:', basketRegions.length);
+            
+            updateRegionDisplay();
+            previewPosition = null;
+            toggleRegionSelection();
         }
 
         // Dummy functions for compatibility (no longer used)
@@ -1008,7 +1190,7 @@
         }
 
         function updateSelection(e) {
-            // Not used in tap mode
+            handlePreviewMove(e);
         }
 
         function endSelection(e) {
