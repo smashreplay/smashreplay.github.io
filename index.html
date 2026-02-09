@@ -695,14 +695,14 @@
             <!-- Input Section -->
             <div class="input-section">
                 <div class="tabs">
-                    <button class="tab active" id="fileTab" onclick="switchTab('file')">Upload File</button>
+                    <button class="tab active" id="fileTab" onclick="switchTab('file')">Load Video</button>
                     <button class="tab" id="urlTab" onclick="switchTab('url')">Use URL</button>
                 </div>
 
                 <div id="fileInput">
-                    <div class="input-group">
+                    <div class="input-group" style="flex-direction: column;">
                         <input type="file" id="videoFile" accept="video/*" onchange="handleFileUpload(event)">
-                        <button class="btn btn-primary" onclick="loadVideo()" id="loadFileBtn" disabled>
+                        <button class="btn btn-primary" onclick="loadVideo()" id="loadFileBtn" disabled style="margin-top: 10px; width: 100%;">
                             Load Video
                         </button>
                     </div>
