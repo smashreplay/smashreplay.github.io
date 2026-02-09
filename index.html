@@ -505,6 +505,43 @@
             font-size: 14px;
         }
 
+        .motion-chart-container {
+            margin-top: 15px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            padding: 12px;
+            position: relative;
+        }
+
+        .motion-chart-container h4 {
+            color: #ccc;
+            font-size: 12px;
+            margin: 0 0 8px 0;
+            font-weight: 600;
+        }
+
+        .motion-chart-legend {
+            display: flex;
+            gap: 12px;
+            font-size: 10px;
+            color: #aaa;
+            margin-top: 6px;
+            flex-wrap: wrap;
+        }
+
+        .motion-chart-legend span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .motion-chart-legend .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
         .status {
             padding: 15px;
             border-radius: 8px;
@@ -890,6 +927,29 @@
                         <p style="font-size: 12px; color: #666; margin-top: 10px; text-align: center;">
                             💡 You can watch the main video while processing continues
                         </p>
+                        <div class="motion-chart-container">
+                            <h4>Motion Analysis</h4>
+                            <canvas id="motionChart" width="600" height="150" style="width: 100%; height: 150px;"></canvas>
+                            <div class="motion-chart-legend">
+                                <span><span class="dot" style="background: #4fc3f7;"></span> Motion</span>
+                                <span><span class="dot" style="background: #ff8a65;"></span> Rim Color</span>
+                                <span><span class="dot" style="background: #ffd54f;"></span> Ball Color</span>
+                                <span><span class="dot" style="background: #4CAF50;"></span> Detection</span>
+                                <span style="color: #666;">Threshold: <span id="motionThresholdLabel">--</span></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Motion chart shown after processing -->
+                    <div class="motion-chart-container" id="motionChartFinal" style="display: none;">
+                        <h4>Motion Analysis (complete)</h4>
+                        <canvas id="motionChartComplete" width="600" height="180" style="width: 100%; height: 180px;"></canvas>
+                        <div class="motion-chart-legend">
+                            <span><span class="dot" style="background: #4fc3f7;"></span> Motion</span>
+                            <span><span class="dot" style="background: #ff8a65;"></span> Rim Color</span>
+                            <span><span class="dot" style="background: #ffd54f;"></span> Ball Color</span>
+                            <span><span class="dot" style="background: #4CAF50;"></span> Detection</span>
+                        </div>
                     </div>
 
                     <!-- Highlights Section -->
@@ -953,6 +1013,10 @@
         let currentHighlightIndex = 0;
         let isTheaterMode = false;
         let playAllListener = null;
+
+        // Motion chart data
+        let chartData = [];        // {time, motion, rim, ball, detected}
+        let chartDetections = [];  // timestamps where detections fired
 
         function switchTab(tab) {
             currentTab = tab;
@@ -1432,6 +1496,125 @@
             }
         }
 
+        function drawMotionChart(canvasId, data, detections, duration) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas || data.length === 0) return;
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width;
+            const H = canvas.height;
+            const pad = { top: 10, bottom: 20, left: 35, right: 10 };
+            const plotW = W - pad.left - pad.right;
+            const plotH = H - pad.top - pad.bottom;
+
+            ctx.clearRect(0, 0, W, H);
+
+            // Find max values for scaling
+            const maxMotion = Math.max(10, ...data.map(d => d.motion));
+            const maxRim = Math.max(1, ...data.map(d => d.rim));
+            const maxBall = Math.max(1, ...data.map(d => d.ball));
+
+            // Draw grid lines
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = pad.top + (plotH / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(pad.left, y);
+                ctx.lineTo(W - pad.right, y);
+                ctx.stroke();
+            }
+
+            // Y-axis labels
+            ctx.fillStyle = '#888';
+            ctx.font = '9px sans-serif';
+            ctx.textAlign = 'right';
+            for (let i = 0; i <= 4; i++) {
+                const y = pad.top + (plotH / 4) * i;
+                const val = Math.round(maxMotion * (1 - i / 4));
+                ctx.fillText(val, pad.left - 4, y + 3);
+            }
+
+            // X-axis time labels
+            ctx.textAlign = 'center';
+            const timeSteps = Math.min(6, Math.floor(duration / 30));
+            for (let i = 0; i <= timeSteps; i++) {
+                const t = (duration / timeSteps) * i;
+                const x = pad.left + (t / duration) * plotW;
+                ctx.fillText(formatTime(t), x, H - 3);
+            }
+
+            // Detection markers (vertical green lines)
+            detections.forEach(t => {
+                const x = pad.left + (t / duration) * plotW;
+                ctx.strokeStyle = 'rgba(76, 175, 80, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x, pad.top);
+                ctx.lineTo(x, pad.top + plotH);
+                ctx.stroke();
+
+                // Small triangle marker at top
+                ctx.fillStyle = '#4CAF50';
+                ctx.beginPath();
+                ctx.moveTo(x - 4, pad.top);
+                ctx.lineTo(x + 4, pad.top);
+                ctx.lineTo(x, pad.top + 8);
+                ctx.closePath();
+                ctx.fill();
+            });
+
+            // Draw motion threshold line
+            const motionThreshold = 12;
+            const threshY = pad.top + plotH * (1 - motionThreshold / maxMotion);
+            if (threshY > pad.top && threshY < pad.top + plotH) {
+                ctx.strokeStyle = 'rgba(255, 82, 82, 0.6)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(pad.left, threshY);
+                ctx.lineTo(W - pad.right, threshY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(255, 82, 82, 0.8)';
+                ctx.textAlign = 'left';
+                ctx.fillText('threshold', pad.left + 2, threshY - 3);
+            }
+
+            // Helper to draw a line series
+            function drawLine(color, getValue, getMax) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                let started = false;
+                data.forEach((d, i) => {
+                    const x = pad.left + (d.time / duration) * plotW;
+                    const v = Math.min(1, getValue(d) / getMax);
+                    const y = pad.top + plotH * (1 - v);
+                    if (!started) { ctx.moveTo(x, y); started = true; }
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+            }
+
+            // Draw rim and ball as normalized against their own max
+            drawLine('rgba(255, 138, 101, 0.7)', d => d.rim, maxRim);
+            drawLine('rgba(255, 213, 79, 0.7)', d => d.ball, maxBall);
+            // Draw motion last (on top) scaled to motion max
+            drawLine('#4fc3f7', d => d.motion, maxMotion);
+        }
+
+        function updateMotionChart() {
+            const duration = document.getElementById('processingVideo').duration || 1;
+            drawMotionChart('motionChart', chartData, chartDetections, duration);
+        }
+
+        function drawFinalMotionChart() {
+            const duration = document.getElementById('processingVideo').duration || 1;
+            const container = document.getElementById('motionChartFinal');
+            container.style.display = 'block';
+            drawMotionChart('motionChartComplete', chartData, chartDetections, duration);
+        }
+
         async function processVideo() {
             const video = document.getElementById('processingVideo'); // Use hidden video
             const canvas = document.getElementById('canvas');
@@ -1441,43 +1624,48 @@
             canvas.height = 180;
             
             highlights = [];
+            chartData = [];
+            chartDetections = [];
             document.getElementById('processBtn').disabled = true;
             document.getElementById('progressContainer').style.display = 'block';
-            document.getElementById('highlightsSection').style.display = 'block'; // Show immediately
-            
-            const regionMsg = basketRegions.length > 0 
-                ? ` Using MOTION-ONLY detection in ${basketRegions.length} region(s). Much faster and more accurate!` 
+            document.getElementById('highlightsSection').style.display = 'block';
+            document.getElementById('motionChartFinal').style.display = 'none';
+
+            const regionMsg = basketRegions.length > 0
+                ? ` Detecting in ${basketRegions.length} region(s) using motion + color analysis.`
                 : ' Using full-frame color detection (slower, less accurate).';
             showStatus('Processing video...' + regionMsg, 'processing');
-            
+            document.getElementById('motionThresholdLabel').textContent = '12';
+
             const duration = video.duration;
-            const fps = 3; // Sample 3 frames per second for efficiency
+            const fps = 3;
             const interval = 1 / fps;
-            
+
             let previousFrame = null;
             let motionHistory = [];
             let intensityHistory = [];
             let framesProcessed = 0;
-            
+
             for (let time = 0; time < duration; time += interval) {
                 video.currentTime = time;
-                
+
                 await new Promise(resolve => {
                     video.onseeked = () => resolve();
                 });
-                
+
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 const currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                
+
                 if (previousFrame) {
                     const motion = detectMotion(previousFrame, currentFrame);
-                    
-                    // Only do color detection if no regions (full frame mode)
-                    const rimScore = basketRegions.length === 0 ? detectRimArea(currentFrame) : 0;
-                    const ballScore = basketRegions.length === 0 ? detectOrangeObject(currentFrame) : 0;
-                    
+                    const rimScore = detectRimArea(currentFrame);
+                    const ballScore = detectOrangeObject(currentFrame);
+
                     motionHistory.push(motion);
                     intensityHistory.push({ rim: rimScore, ball: ballScore });
+
+                    // Record for chart
+                    chartData.push({ time, motion, rim: rimScore, ball: ballScore, detected: false });
                     
                     // Keep last 15 frames (5 seconds at 3fps)
                     if (motionHistory.length > 15) {
@@ -1492,6 +1680,10 @@
                         if (detectionResult.passes) {
                             const lastHighlight = highlights[highlights.length - 1];
                             if (!lastHighlight || time - lastHighlight.timestamp > settings.minGap) {
+                                // Mark on chart
+                                chartDetections.push(time);
+                                if (chartData.length > 0) chartData[chartData.length - 1].detected = true;
+
                                 // Capture thumbnail with detection data
                                 const thumbnail = captureThumbnail(video, canvas, ctx, {
                                     motion: detectionResult.motion,
@@ -1544,8 +1736,9 @@
                 document.getElementById('framesAnalyzed').textContent = framesProcessed;
                 document.getElementById('currentProcessTime').textContent = formatTime(time);
                 
-                // Allow UI to update every 30 frames
-                if (framesProcessed % 30 === 0) {
+                // Allow UI to update and redraw chart every 15 frames
+                if (framesProcessed % 15 === 0) {
+                    updateMotionChart();
                     await new Promise(resolve => setTimeout(resolve, 0));
                 }
             }
@@ -1553,6 +1746,7 @@
             document.getElementById('processBtn').disabled = false;
             document.getElementById('progressContainer').style.display = 'none';
             document.getElementById('setupGuide').style.display = 'none';
+            drawFinalMotionChart();
             
             video.currentTime = 0;
             updateHighlightsDisplay();
@@ -1748,91 +1942,92 @@
         }
 
         function calculateBasketScore(motionHistory, intensityHistory, time) {
-            // If no regions selected, require all signals
-            if (basketRegions.length === 0) {
-                const recentMotion = motionHistory.slice(-3);
-                const earlierMotion = motionHistory.slice(0, -3);
-                
-                const avgRecent = recentMotion.reduce((a, b) => a + b) / recentMotion.length;
-                const avgEarlier = earlierMotion.reduce((a, b) => a + b) / earlierMotion.length;
-                
-                const recentIntensity = intensityHistory.slice(-3);
-                const avgRim = recentIntensity.reduce((a, b) => a + b.rim, 0) / recentIntensity.length;
-                const avgBall = recentIntensity.reduce((a, b) => a + b.ball, 0) / recentIntensity.length;
-                
-                // Fixed thresholds for full-frame mode
-                const motionDrop = avgEarlier > avgRecent * 1.3;
-                const rimVisible = avgRim > 5;
-                const ballPresent = avgBall > 3;
-                
-                let score = 0;
-                let reasons = [];
-                
-                if (motionDrop) {
+            const recentMotion = motionHistory.slice(-3);
+            const earlierMotion = motionHistory.slice(-6, -3);
+
+            const avgRecent = recentMotion.reduce((a, b) => a + b) / recentMotion.length;
+            const avgEarlier = earlierMotion.length > 0
+                ? earlierMotion.reduce((a, b) => a + b) / earlierMotion.length : 0;
+
+            const recentIntensity = intensityHistory.slice(-3);
+            const avgRim = recentIntensity.reduce((a, b) => a + b.rim, 0) / recentIntensity.length;
+            const avgBall = recentIntensity.reduce((a, b) => a + b.ball, 0) / recentIntensity.length;
+
+            // --- Motion pattern analysis ---
+            // A basket is a short burst: motion spikes then drops within ~1-2s
+            // A person walking is sustained motion over many frames
+            const peak = Math.max(...motionHistory.slice(-6));
+            const motionDrop = avgEarlier > 3 && avgRecent < avgEarlier * 0.6;
+            const motionSpike = avgRecent > avgEarlier * 1.8 && avgRecent > 8;
+
+            // Sustained motion check: if motion has been high for 4+ frames, likely a person
+            const highMotionFrames = motionHistory.slice(-6).filter(m => m > 8).length;
+            const sustainedMotion = highMotionFrames >= 5;
+
+            // Color signals
+            const rimVisible = avgRim > 5;
+            const ballPresent = avgBall > 3;
+
+            let score = 0;
+            let reasons = [];
+
+            if (basketRegions.length > 0) {
+                // WITH REGIONS: require motion burst + at least one color signal
+                // Higher motion threshold to filter out minor movements
+                const motionAboveThreshold = avgRecent > 12;
+
+                if (motionAboveThreshold && !sustainedMotion) {
                     score += 30;
-                    reasons.push('Motion Drop');
+                    reasons.push('Motion Burst');
                 }
+
+                // Motion spike or drop pattern (ball appearing/disappearing)
+                if (motionSpike || motionDrop) {
+                    score += 20;
+                    reasons.push('Motion Pattern');
+                }
+
+                // Color signals contribute even in region mode
                 if (rimVisible) {
-                    score += 40;
+                    score += 25;
                     reasons.push('Rim Detected');
                 }
                 if (ballPresent) {
-                    score += 30;
+                    score += 25;
                     reasons.push('Ball Present');
                 }
-                
+
+                // Penalty for sustained motion (person walking through)
+                if (sustainedMotion) {
+                    score = Math.max(0, score - 40);
+                    reasons.push('(sustained motion penalty)');
+                }
+
                 return {
-                    score: score,
-                    motion: avgRecent,
-                    rim: avgRim,
-                    ball: avgBall,
-                    motionDrop: motionDrop,
-                    rimVisible: rimVisible,
-                    ballPresent: ballPresent,
-                    reasons: reasons,
-                    passes: score >= 40  // Fixed min score
+                    score, motion: avgRecent, rim: avgRim, ball: avgBall,
+                    motionDrop, rimVisible, ballPresent, reasons,
+                    passes: score >= 50
                 };
             }
-            
-            // WITH REGIONS: Focus ONLY on motion changes - much simpler!
-            const recentMotion = motionHistory.slice(-3);
-            const earlierMotion = motionHistory.slice(-6, -3); // Compare to slightly earlier window
-            
-            const avgRecent = recentMotion.reduce((a, b) => a + b) / recentMotion.length;
-            const avgEarlier = earlierMotion.reduce((a, b) => a + b) / earlierMotion.length;
-            
-            // Simple motion spike detection: look for increase then decrease
-            const motionSpike = avgEarlier < avgRecent * 0.7; // Motion increased
-            const motionDrop = avgRecent < motionHistory.slice(-6, -3).reduce((a,b)=>a+b)/3 * 0.8; // Then decreased
-            
-            let score = 0;
-            let reasons = [];
-            
-            // Primary signal: motion changed significantly in basket area
-            if (avgRecent > 5) { // Some motion present
-                score += 50;
-                reasons.push('Motion Detected');
-            }
-            
-            // Bonus: motion pattern suggests ball movement
-            if (motionSpike || motionDrop) {
+
+            // NO REGIONS: full-frame mode (unchanged logic)
+            if (motionDrop) {
                 score += 30;
-                reasons.push('Motion Pattern');
+                reasons.push('Motion Drop');
             }
-            
-            // Fixed sensitivity multiplier and threshold
-            score = score * 1.0;  // No multiplier needed
-            
+            if (rimVisible) {
+                score += 40;
+                reasons.push('Rim Detected');
+            }
+            if (ballPresent) {
+                score += 30;
+                reasons.push('Ball Present');
+            }
+
             return {
-                score: score,
-                motion: avgRecent,
-                rim: 0,
-                ball: 0,
-                motionDrop: motionDrop,
-                rimVisible: false,
-                ballPresent: false,
-                reasons: reasons,
-                passes: score >= 40  // Fixed minimum score
+                score, motion: avgRecent, rim: avgRim, ball: avgBall,
+                motionDrop, rimVisible, ballPresent, reasons,
+                passes: score >= 40
             };
         }
 
