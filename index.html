@@ -779,9 +779,6 @@
                 <div id="fileInput">
                     <div class="input-group" style="flex-direction: column;">
                         <input type="file" id="videoFile" accept="video/*" onchange="handleFileUpload(event)">
-                        <button class="btn btn-primary" onclick="loadVideo()" id="loadFileBtn" disabled style="margin-top: 10px; width: 100%;">
-                            Load Video
-                        </button>
                     </div>
                 </div>
 
@@ -1030,7 +1027,7 @@
             const file = event.target.files[0];
             if (file) {
                 videoFile = file;
-                document.getElementById('loadFileBtn').disabled = false;
+                loadVideo();
             }
         }
 
