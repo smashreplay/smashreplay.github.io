@@ -772,7 +772,7 @@
             <!-- Input Section -->
             <div class="input-section">
                 <div class="tabs">
-                    <button class="tab active" id="fileTab" onclick="switchTab('file')">Load Video</button>
+                    <button class="tab active" id="fileTab" onclick="switchTab('file')">Choose File</button>
                     <button class="tab" id="urlTab" onclick="switchTab('url')">Use URL</button>
                 </div>
 
@@ -785,9 +785,6 @@
                 <div id="urlInput" style="display: none;">
                     <div class="input-group">
                         <input type="text" id="videoUrl" placeholder="Enter video URL (e.g., https://example.com/video.mp4 or Google Drive link)" onkeypress="if(event.key==='Enter') loadVideo()">
-                        <button class="btn btn-primary" onclick="loadVideo()">
-                            Load Video
-                        </button>
                     </div>
                     <p style="font-size: 12px; color: #666; margin-top: 8px;">
                         💡 For Google Drive: Share the video → Get link → Change to "Anyone with the link" → Use direct link
