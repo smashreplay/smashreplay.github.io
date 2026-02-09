@@ -1474,16 +1474,17 @@
                     selectionCtx.lineWidth = 3;
                     selectionCtx.strokeRect(x, y, width, height);
 
-                    // Draw label with background
+                    // Draw label with background — position above the box
                     const label = `BASKET ${region.number}`;
                     selectionCtx.font = 'bold 12px sans-serif';
                     const textWidth = selectionCtx.measureText(label).width;
+                    const labelY = y > 26 ? y - 26 : y + height + 4;
 
                     selectionCtx.fillStyle = region.color;
-                    selectionCtx.fillRect(x, y, textWidth + 10, 22);
+                    selectionCtx.fillRect(x, labelY, textWidth + 10, 22);
 
                     selectionCtx.fillStyle = 'white';
-                    selectionCtx.fillText(label, x + 5, y + 15);
+                    selectionCtx.fillText(label, x + 5, labelY + 15);
                 });
             } else if (!isSelectingRegion) {
                 selectionCanvas.classList.remove('has-regions');
@@ -1644,7 +1645,8 @@
                 video.currentTime = time;
 
                 await new Promise(resolve => {
-                    video.onseeked = () => resolve();
+                    const timeout = setTimeout(resolve, 1000);
+                    video.onseeked = () => { clearTimeout(timeout); resolve(); };
                 });
 
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
