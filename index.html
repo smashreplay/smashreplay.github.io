@@ -219,7 +219,8 @@
             
             /* Stack highlights vertically on mobile */
             .highlights-container {
-                max-height: 400px;
+                max-height: none;
+                overflow-y: auto;
             }
             
             .highlight-item {
@@ -1645,8 +1646,10 @@
                 video.currentTime = time;
 
                 await new Promise(resolve => {
-                    const timeout = setTimeout(resolve, 1000);
-                    video.onseeked = () => { clearTimeout(timeout); resolve(); };
+                    let resolved = false;
+                    const done = () => { if (!resolved) { resolved = true; resolve(); } };
+                    const timeout = setTimeout(done, 5000);
+                    video.addEventListener('seeked', () => { clearTimeout(timeout); done(); }, { once: true });
                 });
 
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
