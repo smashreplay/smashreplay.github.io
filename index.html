@@ -930,10 +930,10 @@
                     <div class="motion-chart-container" id="motionChartContainer" style="display: none;">
                         <h4>Motion Analysis</h4>
                         <canvas id="motionChart"></canvas>
-                        <div class="motion-chart-legend">
+                        <div class="motion-chart-legend" id="motionChartLegend">
                             <span><span class="dot" style="background: #4fc3f7;"></span> Motion</span>
+                            <span><span class="dot" style="background: rgba(255,82,82,0.6);"></span> Threshold</span>
                             <span><span class="dot" style="background: #4CAF50;"></span> Detection</span>
-                            <span><span class="dot" style="background: rgba(255,82,82,0.5);"></span> Dynamic Threshold</span>
                         </div>
                     </div>
 
@@ -999,16 +999,15 @@
         let playAllListener = null;
 
         // Motion chart data
-        let chartData = [];        // {time, motion, threshold, detected}
+        let chartData = [];        // {time, motions[], thresholds[], detected}
         let chartDetections = [];  // timestamps where detections fired
 
-        // EMA anomaly detection state
-        let emaMean = 0;           // Exponential moving average of motion
-        let emaVariance = 0;       // EMA of variance (for std dev)
+        // EMA anomaly detection state — per region
         const EMA_ALPHA = 0.08;    // Smoothing factor — lower = slower adaptation
         const ANOMALY_K = 2.5;     // Std deviations above mean to trigger
+        const CEILING_K = 6;       // Motion above threshold * this = too big (person)
         const MIN_THRESHOLD = 3;   // Floor so tiny noise doesn't trigger in dead-still scenes
-        let emaInitialized = false;
+        let regionEMAs = [];       // [{mean, variance, initialized}] per region
 
         function switchTab(tab) {
             currentTab = tab;
@@ -1500,8 +1499,18 @@
             ctx.fillStyle = '#1a1a2e';
             ctx.fillRect(0, 0, W, H);
 
-            // Find max values for scaling
-            const maxMotion = Math.max(10, ...chartData.map(d => Math.max(d.motion, d.threshold || 0)));
+            // Collect all motion and threshold values across all regions
+            const regionCount = chartData.length > 0 ? chartData[0].motions.length : 1;
+            const allValues = [];
+            chartData.forEach(d => {
+                d.motions.forEach(m => allValues.push(m));
+                d.thresholds.forEach(t => allValues.push(t));
+            });
+
+            // Cap y-axis at 95th percentile for readability
+            allValues.sort((a, b) => a - b);
+            const p95 = allValues[Math.floor(allValues.length * 0.95)] || 10;
+            const maxY = Math.max(10, p95 * 1.2);
 
             // Grid lines
             ctx.strokeStyle = 'rgba(255,255,255,0.08)';
@@ -1520,7 +1529,7 @@
             ctx.textAlign = 'right';
             for (let i = 0; i <= 4; i++) {
                 const y = pad.top + (plotH / 4) * i;
-                const val = Math.round(maxMotion * (1 - i / 4));
+                const val = Math.round(maxY * (1 - i / 4));
                 ctx.fillText(val, pad.left - 3, y + 3);
             }
 
@@ -1544,26 +1553,30 @@
                 ctx.fill();
             });
 
-            // Draw line helper
-            function line(color, width, dash, fn, max) {
+            // Line drawing helper — clamps values at maxY
+            function line(color, lw, dash, fn) {
                 ctx.strokeStyle = color;
-                ctx.lineWidth = width;
+                ctx.lineWidth = lw;
                 if (dash) ctx.setLineDash(dash);
                 ctx.beginPath();
                 chartData.forEach((d, i) => {
                     const x = pad.left + (d.time / duration) * plotW;
-                    const y = pad.top + plotH * (1 - Math.min(1, fn(d) / max));
+                    const y = pad.top + plotH * (1 - Math.min(1, fn(d) / maxY));
                     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                 });
                 ctx.stroke();
                 if (dash) ctx.setLineDash([]);
             }
 
-            // Dynamic threshold line (moves with EMA)
-            line('rgba(255, 82, 82, 0.6)', 1, [3, 3], d => d.threshold, maxMotion);
+            // Colors per region
+            const motionColors = ['#4fc3f7', '#ce93d8'];
+            const threshColors = ['rgba(255, 82, 82, 0.6)', 'rgba(255, 167, 38, 0.6)'];
 
-            // Motion line (on top)
-            line('#4fc3f7', 1.5, null, d => d.motion, maxMotion);
+            // Draw per-region threshold and motion lines
+            for (let r = 0; r < regionCount; r++) {
+                line(threshColors[r % threshColors.length], 1, [3, 3], d => d.thresholds[r]);
+                line(motionColors[r % motionColors.length], 1.5, null, d => d.motions[r]);
+            }
         }
 
         async function processVideo() {
@@ -1577,6 +1590,22 @@
             highlights = [];
             chartData = [];
             chartDetections = [];
+
+            // Update legend for number of regions
+            const legendEl = document.getElementById('motionChartLegend');
+            if (basketRegions.length >= 2) {
+                legendEl.innerHTML =
+                    '<span><span class="dot" style="background: #4fc3f7;"></span> Basket 1</span>' +
+                    '<span><span class="dot" style="background: #ce93d8;"></span> Basket 2</span>' +
+                    '<span><span class="dot" style="background: rgba(255,82,82,0.6);"></span> Threshold</span>' +
+                    '<span><span class="dot" style="background: #4CAF50;"></span> Detection</span>';
+            } else {
+                legendEl.innerHTML =
+                    '<span><span class="dot" style="background: #4fc3f7;"></span> Motion</span>' +
+                    '<span><span class="dot" style="background: rgba(255,82,82,0.6);"></span> Threshold</span>' +
+                    '<span><span class="dot" style="background: #4CAF50;"></span> Detection</span>';
+            }
+
             document.getElementById('processBtn').disabled = true;
             document.getElementById('progressContainer').style.display = 'block';
             document.getElementById('highlightsSection').style.display = 'block';
@@ -1592,13 +1621,15 @@
             const interval = 1 / fps;
 
             let previousFrame = null;
-            let motionHistory = [];
             let framesProcessed = 0;
+            const regionCount = Math.max(1, basketRegions.length);
+
+            // Per-region motion histories
+            let motionHistories = [];
+            for (let i = 0; i < regionCount; i++) motionHistories.push([]);
 
             // Reset EMA state
-            emaMean = 0;
-            emaVariance = 0;
-            emaInitialized = false;
+            initRegionEMAs();
 
             for (let time = 0; time < duration; time += interval) {
                 video.currentTime = time;
@@ -1614,21 +1645,22 @@
                 const currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
                 if (previousFrame) {
-                    const motion = detectMotion(previousFrame, currentFrame);
+                    const motions = detectMotion(previousFrame, currentFrame);
 
-                    motionHistory.push(motion);
+                    // Push each region's motion into its own history
+                    motions.forEach((m, i) => {
+                        motionHistories[i].push(m);
+                        if (motionHistories[i].length > 15) motionHistories[i].shift();
+                    });
 
-                    // Record for chart (threshold recorded before detection updates it)
-                    chartData.push({ time, motion, threshold: getEMAThreshold(), detected: false });
-                    
-                    // Keep last 15 frames (5 seconds at 3fps)
-                    if (motionHistory.length > 15) {
-                        motionHistory.shift();
-                    }
+                    // Record for chart: store per-region motions and thresholds
+                    const thresholds = motions.map((_, i) => getRegionThreshold(i));
+                    chartData.push({ time, motions, thresholds, detected: false });
 
-                    // Detect potential basket
-                    if (motionHistory.length >= 6) {
-                        const detectionResult = calculateBasketScore(motionHistory, null, time);
+                    // Detect potential basket (need at least 4 frames per region)
+                    const minHistory = Math.min(...motionHistories.map(h => h.length));
+                    if (minHistory >= 4) {
+                        const detectionResult = calculateBasketScore(motionHistories, time);
                         
                         if (detectionResult.passes) {
                             const lastHighlight = highlights[highlights.length - 1];
@@ -1643,7 +1675,7 @@
                                     rim: detectionResult.rim,
                                     ball: detectionResult.ball,
                                     score: detectionResult.score,
-                                    regionIndex: 0
+                                    regionIndex: detectionResult.regionIndex
                                 });
                                 
                                 highlights.push({
@@ -1717,28 +1749,23 @@
             }
         }
 
+        // Returns array of per-region motion values, or [fullFrameMotion] if no regions
         function detectMotion(frame1, frame2) {
             const data1 = frame1.data;
             const data2 = frame2.data;
-            let diff = 0;
-            let count = 0;
-            
             const width = frame1.width;
             const height = frame1.height;
-            
-            // If regions are set, analyze each region and return max motion
+
             if (basketRegions.length > 0) {
-                let maxMotion = 0;
-                
-                basketRegions.forEach(region => {
+                return basketRegions.map(region => {
                     const startX = Math.floor(region.x * width);
                     const startY = Math.floor(region.y * height);
                     const endX = Math.floor((region.x + region.width) * width);
                     const endY = Math.floor((region.y + region.height) * height);
-                    
+
                     let regionDiff = 0;
                     let regionCount = 0;
-                    
+
                     for (let y = startY; y < endY; y += 2) {
                         for (let x = startX; x < endX; x += 2) {
                             const idx = (y * width + x) * 4;
@@ -1749,14 +1776,12 @@
                             regionCount++;
                         }
                     }
-                    
-                    const regionMotion = regionCount > 0 ? regionDiff / regionCount : 0;
-                    maxMotion = Math.max(maxMotion, regionMotion);
+
+                    return regionCount > 0 ? regionDiff / regionCount : 0;
                 });
-                
-                return maxMotion;
             } else {
-                // Sample pixels across full frame
+                let diff = 0;
+                let count = 0;
                 for (let i = 0; i < data1.length; i += 40) {
                     const r = Math.abs(data1[i] - data2[i]);
                     const g = Math.abs(data1[i + 1] - data2[i + 1]);
@@ -1764,75 +1789,107 @@
                     diff += (r + g + b) / 3;
                     count++;
                 }
-                
-                return diff / count;
+                return [diff / count];
             }
         }
 
-        function updateEMA(motion) {
-            if (!emaInitialized) {
-                emaMean = motion;
-                emaVariance = 0;
-                emaInitialized = true;
+        function initRegionEMAs() {
+            const count = Math.max(1, basketRegions.length);
+            regionEMAs = [];
+            for (let i = 0; i < count; i++) {
+                regionEMAs.push({ mean: 0, variance: 0, initialized: false });
+            }
+        }
+
+        function updateRegionEMA(regionIdx, motion) {
+            const ema = regionEMAs[regionIdx];
+            if (!ema.initialized) {
+                ema.mean = motion;
+                ema.variance = 0;
+                ema.initialized = true;
                 return;
             }
-            const diff = motion - emaMean;
-            emaMean += EMA_ALPHA * diff;
-            emaVariance = (1 - EMA_ALPHA) * (emaVariance + EMA_ALPHA * diff * diff);
+            const diff = motion - ema.mean;
+            ema.mean += EMA_ALPHA * diff;
+            ema.variance = (1 - EMA_ALPHA) * (ema.variance + EMA_ALPHA * diff * diff);
         }
 
-        function getEMAThreshold() {
-            const stdDev = Math.sqrt(Math.max(0, emaVariance));
-            return Math.max(MIN_THRESHOLD, emaMean + ANOMALY_K * stdDev);
+        function getRegionThreshold(regionIdx) {
+            const ema = regionEMAs[regionIdx];
+            if (!ema || !ema.initialized) return MIN_THRESHOLD;
+            const stdDev = Math.sqrt(Math.max(0, ema.variance));
+            return Math.max(MIN_THRESHOLD, ema.mean + ANOMALY_K * stdDev);
         }
 
-        function calculateBasketScore(motionHistory, intensityHistory, time) {
-            const currentMotion = motionHistory[motionHistory.length - 1];
-            const threshold = getEMAThreshold();
+        // motionHistories: array of arrays, one per region
+        // Each inner array is the last N motion values for that region
+        function calculateBasketScore(motionHistories, time) {
+            let bestScore = 0;
+            let bestReasons = [];
+            let bestMotion = 0;
+            let bestThreshold = MIN_THRESHOLD;
+            let bestRegionIdx = 0;
 
-            // Is this frame anomalous?
-            const isAnomaly = currentMotion > threshold;
+            motionHistories.forEach((history, rIdx) => {
+                const currentMotion = history[history.length - 1];
+                const threshold = getRegionThreshold(rIdx);
+                const ceiling = threshold * CEILING_K;
 
-            // Brief burst check: how many of the last 4 frames are above threshold?
-            // At 3fps: 4 frames = 1.3s window
-            // A basket = 1-2 frames (~0.3-0.6s). A person = 3+ frames (~1s+).
-            const recentAbove = motionHistory.slice(-4).filter(m => m > threshold).length;
-            const isBrief = recentAbove >= 1 && recentAbove <= 2;
-            const isSustained = recentAbove >= 3;
+                const isAnomaly = currentMotion > threshold;
+                const isTooBig = currentMotion > ceiling;
 
-            let score = 0;
-            let reasons = [];
+                // Brief burst check in last 4 frames
+                const recentAbove = history.slice(-4).filter(m => m > threshold).length;
+                const isBrief = recentAbove >= 1 && recentAbove <= 2;
+                const isSustained = recentAbove >= 3;
 
-            if (isAnomaly && isBrief) {
-                score += 70;
-                reasons.push('Anomaly Burst');
-            } else if (isAnomaly && !isSustained) {
-                score += 40;
-                reasons.push('Anomaly');
-            }
+                let score = 0;
+                let reasons = [];
 
-            // Spike/drop pattern bonus
-            const avgRecent = motionHistory.slice(-2).reduce((a, b) => a + b) / 2;
-            const avgEarlier = motionHistory.slice(-5, -2).reduce((a, b) => a + b) / Math.max(1, motionHistory.slice(-5, -2).length);
-            if (avgRecent > avgEarlier * 2 && avgRecent > threshold * 0.8) {
-                score += 20;
-                reasons.push('Sharp Spike');
-            }
+                if (isTooBig) {
+                    // Motion too large — likely a person, not a ball
+                    score = 0;
+                    reasons.push('(too large)');
+                } else if (isAnomaly && isBrief) {
+                    score += 70;
+                    reasons.push('Anomaly Burst');
+                } else if (isAnomaly && !isSustained) {
+                    score += 40;
+                    reasons.push('Anomaly');
+                }
 
-            if (isSustained) {
-                score = Math.max(0, score - 50);
-                reasons.push('(sustained)');
-            }
+                // Spike/drop pattern bonus
+                const avgRecent = history.slice(-2).reduce((a, b) => a + b) / 2;
+                const earlier = history.slice(-5, -2);
+                const avgEarlier = earlier.length > 0 ? earlier.reduce((a, b) => a + b) / earlier.length : 0;
+                if (avgRecent > avgEarlier * 2 && avgRecent > threshold * 0.8 && !isTooBig) {
+                    score += 20;
+                    reasons.push('Sharp Spike');
+                }
 
-            // Update EMA AFTER scoring so the current spike doesn't
-            // immediately raise the baseline for itself
-            updateEMA(currentMotion);
+                if (isSustained) {
+                    score = Math.max(0, score - 50);
+                    reasons.push('(sustained)');
+                }
+
+                // Update EMA AFTER scoring
+                updateRegionEMA(rIdx, currentMotion);
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestReasons = reasons;
+                    bestMotion = currentMotion;
+                    bestThreshold = threshold;
+                    bestRegionIdx = rIdx;
+                }
+            });
 
             return {
-                score, motion: currentMotion, rim: 0, ball: 0,
-                threshold,
-                motionDrop: false, rimVisible: false, ballPresent: false, reasons,
-                passes: score >= 50
+                score: bestScore, motion: bestMotion, rim: 0, ball: 0,
+                threshold: bestThreshold, regionIndex: bestRegionIdx,
+                motionDrop: false, rimVisible: false, ballPresent: false,
+                reasons: bestReasons,
+                passes: bestScore >= 50
             };
         }
 
