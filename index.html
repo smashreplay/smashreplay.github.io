@@ -801,11 +801,12 @@
                 </div>
 
                 <div id="urlInput" style="display: none;">
-                    <div class="input-group">
-                        <input type="text" id="videoUrl" placeholder="Enter video URL (e.g., https://example.com/video.mp4 or Google Drive link)" onkeypress="if(event.key==='Enter') loadVideo()">
+                    <div class="input-group" style="display: flex; gap: 8px;">
+                        <input type="text" id="videoUrl" placeholder="Paste video URL or Google Drive link" onkeypress="if(event.key==='Enter') loadVideo()" style="flex: 1;">
+                        <button class="btn btn-primary" onclick="loadVideo()" style="white-space: nowrap; padding: 10px 20px;">Load Video</button>
                     </div>
                     <p style="font-size: 12px; color: #666; margin-top: 8px;">
-                        💡 For Google Drive: Share the video → Get link → Change to "Anyone with the link" → Use direct link
+                        💡 For Google Drive: Share the video → Get link → Change to "Anyone with the link" → Paste link above
                     </p>
                 </div>
             </div>
@@ -1016,7 +1017,7 @@
         const EMA_ALPHA = 0.08;    // Smoothing factor — lower = slower adaptation
         const ANOMALY_K = 2.5;     // Std deviations above mean to trigger
         const CEILING_K = 6;       // Motion above threshold * this = too big (person)
-        const MIN_THRESHOLD = 3;   // Floor so tiny noise doesn't trigger in dead-still scenes
+        const MIN_THRESHOLD = 2.5; // Floor so tiny noise doesn't trigger in dead-still scenes
         let regionEMAs = [];       // [{mean, variance, initialized}] per region
 
         function switchTab(tab) {
