@@ -464,6 +464,16 @@
             border-left: 3px solid #667eea;
         }
 
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.5); }
+            50% { box-shadow: 0 0 16px 4px rgba(76, 175, 80, 0.4); }
+        }
+
         .highlights-container {
             display: flex;
             flex-direction: column;
@@ -1028,27 +1038,53 @@
         function loadVideo() {
             const video = document.getElementById('videoPlayer');
             const processingVideo = document.getElementById('processingVideo');
-            
+
             if (currentTab === 'file' && videoFile) {
                 const url = URL.createObjectURL(videoFile);
+                video.removeAttribute('crossorigin');
+                processingVideo.removeAttribute('crossorigin');
                 video.src = url;
                 processingVideo.src = url;
             } else if (currentTab === 'url') {
                 let url = document.getElementById('videoUrl').value.trim();
-                
+                if (!url) {
+                    showStatus('Please enter a video URL.', 'error');
+                    return;
+                }
+
                 // Handle Google Drive links
-                if (url.includes('drive.google.com')) {
+                const isGoogleDrive = url.includes('drive.google.com') || url.includes('drive.usercontent.google.com');
+                if (isGoogleDrive) {
                     const fileId = extractGoogleDriveId(url);
                     if (fileId) {
-                        url = `https://drive.google.com/uc?export=download&id=${fileId}`;
+                        url = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
+                    } else {
+                        showStatus('Could not extract file ID from Google Drive link. Make sure the link is a valid sharing URL.', 'error');
+                        return;
                     }
                 }
-                
+
+                showStatus('Loading video...', 'processing');
+
                 video.src = url;
                 processingVideo.src = url;
             }
 
+            // Timeout for URL loading
+            let loadTimeout = null;
+            if (currentTab === 'url') {
+                loadTimeout = setTimeout(() => {
+                    const isGD = document.getElementById('videoUrl').value.includes('drive.google');
+                    if (isGD) {
+                        showStatus('Google Drive video is taking too long to load. The file may not be publicly shared, or Google may be blocking direct access. Try downloading the video and uploading it as a local file instead.', 'error');
+                    } else {
+                        showStatus('Video is taking too long to load. Check the URL and try again.', 'error');
+                    }
+                }, 20000);
+            }
+
             video.onloadedmetadata = () => {
+                if (loadTimeout) clearTimeout(loadTimeout);
                 document.getElementById('emptyState').style.display = 'none';
                 document.getElementById('videoSection').style.display = 'grid';
                 document.getElementById('settingsPanel').style.display = 'block';
@@ -1056,16 +1092,24 @@
                 basketRegions = [];
                 updateHighlightsDisplay();
                 updateRegionDisplay();
-                
+
                 // Initialize selection canvas
                 initSelectionCanvas();
-                
+
                 // Set up keyboard navigation
                 setupKeyboardNavigation();
+
+                showStatus('Video loaded successfully! Select basket regions to start.', 'complete');
             };
 
             video.onerror = () => {
-                showStatus('Error loading video. Check the URL or file format.', 'error');
+                if (loadTimeout) clearTimeout(loadTimeout);
+                const urlInput = document.getElementById('videoUrl').value || '';
+                if (urlInput.includes('drive.google')) {
+                    showStatus('Could not load Google Drive video. Make sure the file is set to "Anyone with the link can view" and try again. If it still fails, download the video and upload it as a local file.', 'error');
+                } else {
+                    showStatus('Error loading video. Check the URL or file format.', 'error');
+                }
             };
         }
 
@@ -1075,7 +1119,7 @@
                 /id=([a-zA-Z0-9-_]+)/,
                 /\/file\/d\/([a-zA-Z0-9-_]+)/
             ];
-            
+
             for (const pattern of patterns) {
                 const match = url.match(pattern);
                 if (match) return match[1];
@@ -1398,14 +1442,51 @@
         function updateGuidedWorkflow() {
             const processBtn = document.getElementById('processBtn');
             const setupGuide = document.getElementById('setupGuide');
+            const nextStepsPanel = document.getElementById('nextStepsPanel');
 
             if (basketRegions.length === 0) {
                 processBtn.style.display = 'none';
                 setupGuide.style.display = 'block';
+                if (nextStepsPanel) nextStepsPanel.style.display = 'none';
             } else {
-                processBtn.style.display = 'block';
-                processBtn.innerHTML = '<span>✓ Start Detection</span>';
+                processBtn.style.display = 'none'; // hide standalone button; next-steps panel takes over
                 setupGuide.style.display = 'none';
+
+                if (!nextStepsPanel) {
+                    // Create the next-steps panel once
+                    const panel = document.createElement('div');
+                    panel.id = 'nextStepsPanel';
+                    panel.style.cssText = 'margin-top: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 18px; border-radius: 12px; color: white; animation: fadeSlideIn 0.4s ease;';
+                    processBtn.parentNode.insertBefore(panel, processBtn);
+                }
+
+                const panel = document.getElementById('nextStepsPanel');
+                panel.style.display = 'block';
+
+                if (basketRegions.length < MAX_REGIONS) {
+                    panel.innerHTML = `
+                        <div style="font-weight: 700; font-size: 15px; margin-bottom: 12px;">Basket ${basketRegions.length} selected!</div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn" onclick="processVideo()" style="flex: 1; background: #4CAF50; color: white; border: none; font-weight: 700; font-size: 15px; padding: 14px;">
+                                Start Detection
+                            </button>
+                            <button class="btn" onclick="startRegionSelection()" style="flex: 1; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); font-size: 14px; padding: 14px;">
+                                Add Basket ${basketRegions.length + 1}
+                            </button>
+                        </div>
+                        <div style="font-size: 12px; opacity: 0.8; margin-top: 8px; text-align: center;">Adding both baskets improves accuracy</div>
+                    `;
+                } else {
+                    panel.innerHTML = `
+                        <div style="font-weight: 700; font-size: 15px; margin-bottom: 12px;">Both baskets selected!</div>
+                        <button class="btn" onclick="processVideo()" style="width: 100%; background: #4CAF50; color: white; border: none; font-weight: 700; font-size: 16px; padding: 16px; animation: pulseGlow 1.5s ease-in-out infinite;">
+                            Start Detection
+                        </button>
+                    `;
+                }
+
+                // Scroll the panel into view
+                panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
         }
 
@@ -1419,8 +1500,11 @@
 
         function skipToProcessing() {
             document.getElementById('setupGuide').style.display = 'none';
-            document.getElementById('processBtn').style.display = 'block';
-            document.getElementById('processBtn').innerHTML = '<span>▶ Start Detection</span>';
+            // If no baskets selected yet, show the process button directly
+            if (basketRegions.length === 0) {
+                document.getElementById('processBtn').style.display = 'block';
+                document.getElementById('processBtn').innerHTML = '<span>▶ Start Detection (Full Frame)</span>';
+            }
             showStatus('You can still add basket regions before processing for better accuracy.', 'complete');
         }
 
@@ -1607,6 +1691,8 @@
             }
 
             document.getElementById('processBtn').disabled = true;
+            const nsp = document.getElementById('nextStepsPanel');
+            if (nsp) nsp.style.display = 'none';
             document.getElementById('progressContainer').style.display = 'block';
             document.getElementById('highlightsSection').style.display = 'block';
             document.getElementById('motionChartContainer').style.display = 'block';
@@ -1642,7 +1728,16 @@
                 });
 
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                let currentFrame;
+                try {
+                    currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                } catch (e) {
+                    // Tainted canvas — cross-origin video blocks pixel reading
+                    document.getElementById('processBtn').disabled = false;
+                    document.getElementById('progressContainer').style.display = 'none';
+                    showStatus('Cannot process this video due to cross-origin restrictions. The video server does not allow pixel-level access from the browser. Please download the video and upload it as a local file instead.', 'error');
+                    return;
+                }
 
                 if (previousFrame) {
                     const motions = detectMotion(previousFrame, currentFrame);
