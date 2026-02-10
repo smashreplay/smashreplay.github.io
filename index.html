@@ -932,9 +932,8 @@
                         <canvas id="motionChart"></canvas>
                         <div class="motion-chart-legend">
                             <span><span class="dot" style="background: #4fc3f7;"></span> Motion</span>
-                            <span><span class="dot" style="background: #ff8a65;"></span> Rim Color</span>
-                            <span><span class="dot" style="background: #ffd54f;"></span> Ball Color</span>
                             <span><span class="dot" style="background: #4CAF50;"></span> Detection</span>
+                            <span><span class="dot" style="background: rgba(255,82,82,0.5);"></span> Threshold</span>
                         </div>
                     </div>
 
@@ -946,8 +945,7 @@
                         </div>
                         
                         <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 11px; color: #666;">
-                            <strong>Debug Info:</strong> M=Motion, R=Rim, B=Ball 
-                            | 📉=Motion Drop, 🎯=Rim Found, 🏀=Ball Detected
+                            <strong>Debug:</strong> Motion Burst = short spike above threshold | Motion Pattern = spike then drop
                         </div>
 
                         <div class="highlights-list" id="highlightsList"></div>
@@ -1496,8 +1494,6 @@
 
             // Find max values for scaling
             const maxMotion = Math.max(10, ...chartData.map(d => d.motion));
-            const maxRim = Math.max(1, ...chartData.map(d => d.rim));
-            const maxBall = Math.max(1, ...chartData.map(d => d.ball));
 
             // Grid lines
             ctx.strokeStyle = 'rgba(255,255,255,0.08)';
@@ -1567,8 +1563,6 @@
                 ctx.stroke();
             }
 
-            line('rgba(255, 138, 101, 0.6)', d => d.rim, maxRim);
-            line('rgba(255, 213, 79, 0.6)', d => d.ball, maxBall);
             line('#4fc3f7', d => d.motion, maxMotion);
         }
 
@@ -1589,8 +1583,8 @@
             document.getElementById('motionChartContainer').style.display = 'block';
 
             const regionMsg = basketRegions.length > 0
-                ? ` Detecting in ${basketRegions.length} region(s) using motion + color analysis.`
-                : ' Using full-frame color detection (slower, less accurate).';
+                ? ` Detecting motion in ${basketRegions.length} region(s).`
+                : ' Using full-frame motion detection.';
             showStatus('Processing video...' + regionMsg, 'processing');
 
             const duration = video.duration;
@@ -1599,7 +1593,6 @@
 
             let previousFrame = null;
             let motionHistory = [];
-            let intensityHistory = [];
             let framesProcessed = 0;
 
             for (let time = 0; time < duration; time += interval) {
@@ -1617,24 +1610,20 @@
 
                 if (previousFrame) {
                     const motion = detectMotion(previousFrame, currentFrame);
-                    const rimScore = detectRimArea(currentFrame);
-                    const ballScore = detectOrangeObject(currentFrame);
 
                     motionHistory.push(motion);
-                    intensityHistory.push({ rim: rimScore, ball: ballScore });
 
                     // Record for chart
-                    chartData.push({ time, motion, rim: rimScore, ball: ballScore, detected: false });
+                    chartData.push({ time, motion, detected: false });
                     
                     // Keep last 15 frames (5 seconds at 3fps)
                     if (motionHistory.length > 15) {
                         motionHistory.shift();
-                        intensityHistory.shift();
                     }
-                    
+
                     // Detect potential basket
                     if (motionHistory.length >= 6) {
-                        const detectionResult = calculateBasketScore(motionHistory, intensityHistory, time);
+                        const detectionResult = calculateBasketScore(motionHistory, null, time);
                         
                         if (detectionResult.passes) {
                             const lastHighlight = highlights[highlights.length - 1];
@@ -1775,131 +1764,6 @@
             }
         }
 
-        function detectRimArea(imageData) {
-            const data = imageData.data;
-            const width = imageData.width;
-            const height = imageData.height;
-            
-            let orangeRedPixels = 0;
-            let totalChecked = 0;
-            
-            if (basketRegions.length > 0) {
-                // Analyze all regions and return max score
-                let maxScore = 0;
-                
-                basketRegions.forEach(region => {
-                    const startX = Math.floor(region.x * width);
-                    const startY = Math.floor(region.y * height);
-                    const endX = Math.floor((region.x + region.width) * width);
-                    const endY = Math.floor((region.y + region.height) * height);
-                    
-                    let regionOrange = 0;
-                    let regionChecked = 0;
-                    
-                    for (let y = startY; y < endY; y += 2) {
-                        for (let x = startX; x < endX; x += 2) {
-                            const idx = (y * width + x) * 4;
-                            const r = data[idx];
-                            const g = data[idx + 1];
-                            const b = data[idx + 2];
-                            
-                            if (r > 140 && g > 40 && g < 160 && b < 100) {
-                                regionOrange++;
-                            }
-                            regionChecked++;
-                        }
-                    }
-                    
-                    const regionScore = regionChecked > 0 ? (regionOrange / regionChecked) * 1000 : 0;
-                    maxScore = Math.max(maxScore, regionScore);
-                });
-                
-                return maxScore;
-            } else {
-                // Check top half for orange/red (rim)
-                const topHalf = Math.floor(height / 2);
-                
-                for (let y = 0; y < topHalf; y += 2) {
-                    for (let x = 0; x < width; x += 2) {
-                        const idx = (y * width + x) * 4;
-                        const r = data[idx];
-                        const g = data[idx + 1];
-                        const b = data[idx + 2];
-                        
-                        if (r > 140 && g > 40 && g < 160 && b < 100) {
-                            orangeRedPixels++;
-                        }
-                        totalChecked++;
-                    }
-                }
-                
-                return (orangeRedPixels / totalChecked) * 1000;
-            }
-        }
-
-        function detectOrangeObject(imageData) {
-            const data = imageData.data;
-            const width = imageData.width;
-            const height = imageData.height;
-            
-            let orangePixels = 0;
-            let totalChecked = 0;
-            
-            if (basketRegions.length > 0) {
-                // Analyze all regions and return max score
-                let maxScore = 0;
-                
-                basketRegions.forEach(region => {
-                    const startX = Math.floor(region.x * width);
-                    const startY = Math.floor(region.y * height);
-                    const endX = Math.floor((region.x + region.width) * width);
-                    const endY = Math.floor((region.y + region.height) * height);
-                    
-                    let regionOrange = 0;
-                    let regionChecked = 0;
-                    
-                    for (let y = startY; y < endY; y += 2) {
-                        for (let x = startX; x < endX; x += 2) {
-                            const idx = (y * width + x) * 4;
-                            const r = data[idx];
-                            const g = data[idx + 1];
-                            const b = data[idx + 2];
-                            
-                            if (r > 180 && g > 80 && g < 180 && b < 120 && r > g && g > b) {
-                                regionOrange++;
-                            }
-                            regionChecked++;
-                        }
-                    }
-                    
-                    const regionScore = regionChecked > 0 ? (regionOrange / regionChecked) * 1000 : 0;
-                    maxScore = Math.max(maxScore, regionScore);
-                });
-                
-                return maxScore;
-            } else {
-                // Check middle area for orange ball
-                const startY = Math.floor(height * 0.2);
-                const endY = Math.floor(height * 0.8);
-                
-                for (let y = startY; y < endY; y += 2) {
-                    for (let x = 0; x < width; x += 2) {
-                        const idx = (y * width + x) * 4;
-                        const r = data[idx];
-                        const g = data[idx + 1];
-                        const b = data[idx + 2];
-                        
-                        if (r > 180 && g > 80 && g < 180 && b < 120 && r > g && g > b) {
-                            orangePixels++;
-                        }
-                        totalChecked++;
-                    }
-                }
-                
-                return (orangePixels / totalChecked) * 1000;
-            }
-        }
-
         function calculateBasketScore(motionHistory, intensityHistory, time) {
             const recentMotion = motionHistory.slice(-3);
             const earlierMotion = motionHistory.slice(-6, -3);
@@ -1908,85 +1772,40 @@
             const avgEarlier = earlierMotion.length > 0
                 ? earlierMotion.reduce((a, b) => a + b) / earlierMotion.length : 0;
 
-            const recentIntensity = intensityHistory.slice(-3);
-            const avgRim = recentIntensity.reduce((a, b) => a + b.rim, 0) / recentIntensity.length;
-            const avgBall = recentIntensity.reduce((a, b) => a + b.ball, 0) / recentIntensity.length;
-
-            // --- Motion pattern analysis ---
-            // A basket is a short burst: motion spikes then drops within ~1-2s
-            // A person walking is sustained motion over many frames
-            const peak = Math.max(...motionHistory.slice(-6));
+            // Motion pattern: basket = short burst (spike then drop)
+            // Person walking = sustained high motion over many frames
             const motionDrop = avgEarlier > 3 && avgRecent < avgEarlier * 0.6;
             const motionSpike = avgRecent > avgEarlier * 1.8 && avgRecent > 8;
 
-            // Sustained motion check: if motion has been high for 4+ frames, likely a person
+            // Sustained motion check: high motion for 5+ of last 6 frames = person
             const highMotionFrames = motionHistory.slice(-6).filter(m => m > 8).length;
             const sustainedMotion = highMotionFrames >= 5;
-
-            // Color signals
-            const rimVisible = avgRim > 5;
-            const ballPresent = avgBall > 3;
 
             let score = 0;
             let reasons = [];
 
-            if (basketRegions.length > 0) {
-                // WITH REGIONS: require motion burst + at least one color signal
-                // Higher motion threshold to filter out minor movements
-                const motionAboveThreshold = avgRecent > 12;
-
-                if (motionAboveThreshold && !sustainedMotion) {
-                    score += 30;
-                    reasons.push('Motion Burst');
-                }
-
-                // Motion spike or drop pattern (ball appearing/disappearing)
-                if (motionSpike || motionDrop) {
-                    score += 20;
-                    reasons.push('Motion Pattern');
-                }
-
-                // Color signals contribute even in region mode
-                if (rimVisible) {
-                    score += 25;
-                    reasons.push('Rim Detected');
-                }
-                if (ballPresent) {
-                    score += 25;
-                    reasons.push('Ball Present');
-                }
-
-                // Penalty for sustained motion (person walking through)
-                if (sustainedMotion) {
-                    score = Math.max(0, score - 40);
-                    reasons.push('(sustained motion penalty)');
-                }
-
-                return {
-                    score, motion: avgRecent, rim: avgRim, ball: avgBall,
-                    motionDrop, rimVisible, ballPresent, reasons,
-                    passes: score >= 50
-                };
+            // Motion above threshold (short burst, not sustained)
+            if (avgRecent > 12 && !sustainedMotion) {
+                score += 50;
+                reasons.push('Motion Burst');
             }
 
-            // NO REGIONS: full-frame mode (unchanged logic)
-            if (motionDrop) {
+            // Motion spike or drop pattern (ball appearing/disappearing)
+            if (motionSpike || motionDrop) {
                 score += 30;
-                reasons.push('Motion Drop');
+                reasons.push('Motion Pattern');
             }
-            if (rimVisible) {
-                score += 40;
-                reasons.push('Rim Detected');
-            }
-            if (ballPresent) {
-                score += 30;
-                reasons.push('Ball Present');
+
+            // Penalty for sustained motion (person walking through)
+            if (sustainedMotion) {
+                score = Math.max(0, score - 40);
+                reasons.push('(sustained motion)');
             }
 
             return {
-                score, motion: avgRecent, rim: avgRim, ball: avgBall,
-                motionDrop, rimVisible, ballPresent, reasons,
-                passes: score >= 40
+                score, motion: avgRecent, rim: 0, ball: 0,
+                motionDrop, rimVisible: false, ballPresent: false, reasons,
+                passes: score >= 50
             };
         }
 
