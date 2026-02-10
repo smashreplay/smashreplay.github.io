@@ -514,6 +514,13 @@
             position: relative;
         }
 
+        .motion-chart-container canvas {
+            display: block;
+            width: 100%;
+            height: 160px;
+            border-radius: 4px;
+        }
+
         .motion-chart-container h4 {
             color: #ccc;
             font-size: 12px;
@@ -917,23 +924,12 @@
                         <p style="font-size: 12px; color: #666; margin-top: 10px; text-align: center;">
                             💡 You can watch the main video while processing continues
                         </p>
-                        <div class="motion-chart-container">
-                            <h4>Motion Analysis</h4>
-                            <canvas id="motionChart" style="width: 100%; height: 150px;"></canvas>
-                            <div class="motion-chart-legend">
-                                <span><span class="dot" style="background: #4fc3f7;"></span> Motion</span>
-                                <span><span class="dot" style="background: #ff8a65;"></span> Rim Color</span>
-                                <span><span class="dot" style="background: #ffd54f;"></span> Ball Color</span>
-                                <span><span class="dot" style="background: #4CAF50;"></span> Detection</span>
-                                <span style="color: #666;">Threshold: <span id="motionThresholdLabel">--</span></span>
-                            </div>
-                        </div>
                     </div>
 
-                    <!-- Motion chart shown after processing -->
-                    <div class="motion-chart-container" id="motionChartFinal" style="display: none;">
-                        <h4>Motion Analysis (complete)</h4>
-                        <canvas id="motionChartComplete" style="width: 100%; height: 180px;"></canvas>
+                    <!-- Motion chart - single persistent element, visible once processing starts -->
+                    <div class="motion-chart-container" id="motionChartContainer" style="display: none;">
+                        <h4>Motion Analysis</h4>
+                        <canvas id="motionChart"></canvas>
                         <div class="motion-chart-legend">
                             <span><span class="dot" style="background: #4fc3f7;"></span> Motion</span>
                             <span><span class="dot" style="background: #ff8a65;"></span> Rim Color</span>
@@ -1468,38 +1464,43 @@
             }
         }
 
-        function drawMotionChart(canvasId, data, detections, duration) {
-            const canvas = document.getElementById(canvasId);
-            if (!canvas || data.length === 0) return;
+        function drawMotionChart() {
+            const container = document.getElementById('motionChartContainer');
+            const canvas = document.getElementById('motionChart');
+            if (!canvas || chartData.length === 0) return;
 
-            // Match internal resolution to display size
-            const rect = canvas.getBoundingClientRect();
-            const dpr = window.devicePixelRatio || 1;
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
+            // Ensure container is visible before measuring
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+            }
 
+            // Size canvas to match CSS layout (avoids blurry rendering)
+            const cssW = canvas.clientWidth;
+            const cssH = canvas.clientHeight;
+            if (cssW === 0 || cssH === 0) return; // not laid out yet
+            canvas.width = cssW * 2;
+            canvas.height = cssH * 2;
             const ctx = canvas.getContext('2d');
-            ctx.scale(dpr, dpr);
+            ctx.scale(2, 2);
 
-            const W = rect.width;
-            const H = rect.height;
-            const pad = { top: 10, bottom: 20, left: 35, right: 10 };
+            const W = cssW;
+            const H = cssH;
+            const pad = { top: 8, bottom: 18, left: 30, right: 8 };
             const plotW = W - pad.left - pad.right;
             const plotH = H - pad.top - pad.bottom;
-
-            ctx.clearRect(0, 0, W, H);
+            const duration = document.getElementById('processingVideo').duration || 1;
 
             // Background
             ctx.fillStyle = '#1a1a2e';
             ctx.fillRect(0, 0, W, H);
 
             // Find max values for scaling
-            const maxMotion = Math.max(10, ...data.map(d => d.motion));
-            const maxRim = Math.max(1, ...data.map(d => d.rim));
-            const maxBall = Math.max(1, ...data.map(d => d.ball));
+            const maxMotion = Math.max(10, ...chartData.map(d => d.motion));
+            const maxRim = Math.max(1, ...chartData.map(d => d.rim));
+            const maxBall = Math.max(1, ...chartData.map(d => d.ball));
 
-            // Draw grid lines
-            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            // Grid lines
+            ctx.strokeStyle = 'rgba(255,255,255,0.08)';
             ctx.lineWidth = 1;
             for (let i = 0; i <= 4; i++) {
                 const y = pad.top + (plotH / 4) * i;
@@ -1510,13 +1511,13 @@
             }
 
             // Y-axis labels
-            ctx.fillStyle = '#888';
+            ctx.fillStyle = '#666';
             ctx.font = '9px sans-serif';
             ctx.textAlign = 'right';
             for (let i = 0; i <= 4; i++) {
                 const y = pad.top + (plotH / 4) * i;
                 const val = Math.round(maxMotion * (1 - i / 4));
-                ctx.fillText(val, pad.left - 4, y + 3);
+                ctx.fillText(val, pad.left - 3, y + 3);
             }
 
             // X-axis time labels
@@ -1525,79 +1526,50 @@
             for (let i = 0; i <= timeSteps; i++) {
                 const t = (duration / timeSteps) * i;
                 const x = pad.left + (t / duration) * plotW;
-                ctx.fillText(formatTime(t), x, H - 3);
+                ctx.fillText(formatTime(t), x, H - 2);
             }
 
-            // Detection markers (vertical green lines)
-            detections.forEach(t => {
+            // Detection markers (green vertical bars)
+            chartDetections.forEach(t => {
                 const x = pad.left + (t / duration) * plotW;
-                ctx.strokeStyle = 'rgba(76, 175, 80, 0.5)';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(x, pad.top);
-                ctx.lineTo(x, pad.top + plotH);
-                ctx.stroke();
-
-                // Small triangle marker at top
+                ctx.fillStyle = 'rgba(76, 175, 80, 0.25)';
+                ctx.fillRect(x - 3, pad.top, 6, plotH);
                 ctx.fillStyle = '#4CAF50';
                 ctx.beginPath();
-                ctx.moveTo(x - 4, pad.top);
-                ctx.lineTo(x + 4, pad.top);
-                ctx.lineTo(x, pad.top + 8);
-                ctx.closePath();
+                ctx.arc(x, pad.top + 4, 3, 0, Math.PI * 2);
                 ctx.fill();
             });
 
-            // Draw motion threshold line
+            // Threshold line
             const motionThreshold = 12;
             const threshY = pad.top + plotH * (1 - motionThreshold / maxMotion);
             if (threshY > pad.top && threshY < pad.top + plotH) {
-                ctx.strokeStyle = 'rgba(255, 82, 82, 0.6)';
+                ctx.strokeStyle = 'rgba(255, 82, 82, 0.5)';
                 ctx.lineWidth = 1;
-                ctx.setLineDash([4, 4]);
+                ctx.setLineDash([3, 3]);
                 ctx.beginPath();
                 ctx.moveTo(pad.left, threshY);
                 ctx.lineTo(W - pad.right, threshY);
                 ctx.stroke();
                 ctx.setLineDash([]);
-                ctx.fillStyle = 'rgba(255, 82, 82, 0.8)';
-                ctx.textAlign = 'left';
-                ctx.fillText('threshold', pad.left + 2, threshY - 3);
             }
 
-            // Helper to draw a line series
-            function drawLine(color, getValue, getMax) {
+            // Draw line helper
+            function line(color, fn, max) {
                 ctx.strokeStyle = color;
                 ctx.lineWidth = 1.5;
                 ctx.beginPath();
-                let started = false;
-                data.forEach((d, i) => {
+                chartData.forEach((d, i) => {
                     const x = pad.left + (d.time / duration) * plotW;
-                    const v = Math.min(1, getValue(d) / getMax);
-                    const y = pad.top + plotH * (1 - v);
-                    if (!started) { ctx.moveTo(x, y); started = true; }
-                    else ctx.lineTo(x, y);
+                    const y = pad.top + plotH * (1 - Math.min(1, fn(d) / max));
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
                 });
                 ctx.stroke();
             }
 
-            // Draw rim and ball as normalized against their own max
-            drawLine('rgba(255, 138, 101, 0.7)', d => d.rim, maxRim);
-            drawLine('rgba(255, 213, 79, 0.7)', d => d.ball, maxBall);
-            // Draw motion last (on top) scaled to motion max
-            drawLine('#4fc3f7', d => d.motion, maxMotion);
-        }
-
-        function updateMotionChart() {
-            const duration = document.getElementById('processingVideo').duration || 1;
-            drawMotionChart('motionChart', chartData, chartDetections, duration);
-        }
-
-        function drawFinalMotionChart() {
-            const duration = document.getElementById('processingVideo').duration || 1;
-            const container = document.getElementById('motionChartFinal');
-            container.style.display = 'block';
-            drawMotionChart('motionChartComplete', chartData, chartDetections, duration);
+            line('rgba(255, 138, 101, 0.6)', d => d.rim, maxRim);
+            line('rgba(255, 213, 79, 0.6)', d => d.ball, maxBall);
+            line('#4fc3f7', d => d.motion, maxMotion);
         }
 
         async function processVideo() {
@@ -1614,13 +1586,12 @@
             document.getElementById('processBtn').disabled = true;
             document.getElementById('progressContainer').style.display = 'block';
             document.getElementById('highlightsSection').style.display = 'block';
-            document.getElementById('motionChartFinal').style.display = 'none';
+            document.getElementById('motionChartContainer').style.display = 'block';
 
             const regionMsg = basketRegions.length > 0
                 ? ` Detecting in ${basketRegions.length} region(s) using motion + color analysis.`
                 : ' Using full-frame color detection (slower, less accurate).';
             showStatus('Processing video...' + regionMsg, 'processing');
-            document.getElementById('motionThresholdLabel').textContent = '12';
 
             const duration = video.duration;
             const fps = 3;
@@ -1726,7 +1697,7 @@
                 
                 // Allow UI to update and redraw chart every 15 frames
                 if (framesProcessed % 15 === 0) {
-                    updateMotionChart();
+                    drawMotionChart();
                     await new Promise(resolve => setTimeout(resolve, 0));
                 }
             }
@@ -1734,7 +1705,7 @@
             document.getElementById('processBtn').disabled = false;
             document.getElementById('progressContainer').style.display = 'none';
             document.getElementById('setupGuide').style.display = 'none';
-            drawFinalMotionChart();
+            drawMotionChart();
             
             video.currentTime = 0;
             updateHighlightsDisplay();
