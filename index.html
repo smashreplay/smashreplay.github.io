@@ -814,17 +814,12 @@
                 <div class="video-column">
                     <!-- Guided Setup Steps -->
                     <div id="setupGuide" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-                            <div style="width: 40px; height: 40px; background: white; color: #667eea; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px;">
-                                <span id="stepNumber">1</span>
-                            </div>
-                            <div style="flex: 1;">
-                                <div style="font-size: 18px; font-weight: 600; margin-bottom: 5px;" id="stepTitle">
-                                    Select First Basket Region
-                                </div>
-                                <div style="font-size: 14px; opacity: 0.9;" id="stepDescription">
-                                    Click "Add Basket Region" below and draw a box around the basket/rim
-                                </div>
+                        <div style="text-align: center;">
+                            <!-- Placeholder: replace src with your own image showing the basket selection area -->
+                            <img id="setupGuideImage" src="" alt="Select the area around the basket" style="max-width: 100%; border-radius: 8px; display: none;">
+                            <div id="setupGuidePlaceholder" style="background: rgba(255,255,255,0.15); border: 2px dashed rgba(255,255,255,0.4); border-radius: 8px; padding: 40px 20px; margin-bottom: 15px;">
+                                <div style="font-size: 40px; margin-bottom: 8px;">🏀</div>
+                                <div style="font-size: 14px; opacity: 0.9;">Guide image placeholder</div>
                             </div>
                         </div>
                         <div style="display: flex; gap: 10px;">
@@ -924,7 +919,7 @@
                         </p>
                         <div class="motion-chart-container">
                             <h4>Motion Analysis</h4>
-                            <canvas id="motionChart" width="600" height="150" style="width: 100%; height: 150px;"></canvas>
+                            <canvas id="motionChart" style="width: 100%; height: 150px;"></canvas>
                             <div class="motion-chart-legend">
                                 <span><span class="dot" style="background: #4fc3f7;"></span> Motion</span>
                                 <span><span class="dot" style="background: #ff8a65;"></span> Rim Color</span>
@@ -938,7 +933,7 @@
                     <!-- Motion chart shown after processing -->
                     <div class="motion-chart-container" id="motionChartFinal" style="display: none;">
                         <h4>Motion Analysis (complete)</h4>
-                        <canvas id="motionChartComplete" width="600" height="180" style="width: 100%; height: 180px;"></canvas>
+                        <canvas id="motionChartComplete" style="width: 100%; height: 180px;"></canvas>
                         <div class="motion-chart-legend">
                             <span><span class="dot" style="background: #4fc3f7;"></span> Motion</span>
                             <span><span class="dot" style="background: #ff8a65;"></span> Rim Color</span>
@@ -1400,35 +1395,16 @@
         }
 
         function updateGuidedWorkflow() {
-            const stepNumber = document.getElementById('stepNumber');
-            const stepTitle = document.getElementById('stepTitle');
-            const stepDescription = document.getElementById('stepDescription');
             const processBtn = document.getElementById('processBtn');
             const setupGuide = document.getElementById('setupGuide');
-            
+
             if (basketRegions.length === 0) {
-                // Step 1: No regions
-                stepNumber.textContent = '1';
-                stepTitle.textContent = 'Select First Basket Region';
-                stepDescription.textContent = 'Tap "Add Basket Region" below, then drag and resize the box over the basket';
                 processBtn.style.display = 'none';
                 setupGuide.style.display = 'block';
-            } else if (basketRegions.length === 1) {
-                // Step 2: One region, prompt for second
-                stepNumber.textContent = '2';
-                stepTitle.textContent = 'Add Second Basket? (Optional)';
-                stepDescription.textContent = 'If there\'s another basket visible in the video, add it now. Otherwise, click "Start Detection"';
-                processBtn.style.display = 'block';
-                processBtn.innerHTML = '<span>✓ Start Detection</span>';
-                setupGuide.style.display = 'block';
             } else {
-                // Step 3: Ready to process
-                stepNumber.textContent = '✓';
-                stepTitle.textContent = 'Ready to Detect!';
-                stepDescription.textContent = 'Both basket regions selected. Click "Start Detection" to find all the baskets!';
                 processBtn.style.display = 'block';
                 processBtn.innerHTML = '<span>✓ Start Detection</span>';
-                setupGuide.style.display = 'block';
+                setupGuide.style.display = 'none';
             }
         }
 
@@ -1495,14 +1471,27 @@
         function drawMotionChart(canvasId, data, detections, duration) {
             const canvas = document.getElementById(canvasId);
             if (!canvas || data.length === 0) return;
+
+            // Match internal resolution to display size
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+
             const ctx = canvas.getContext('2d');
-            const W = canvas.width;
-            const H = canvas.height;
+            ctx.scale(dpr, dpr);
+
+            const W = rect.width;
+            const H = rect.height;
             const pad = { top: 10, bottom: 20, left: 35, right: 10 };
             const plotW = W - pad.left - pad.right;
             const plotH = H - pad.top - pad.bottom;
 
             ctx.clearRect(0, 0, W, H);
+
+            // Background
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, W, H);
 
             // Find max values for scaling
             const maxMotion = Math.max(10, ...data.map(d => d.motion));
@@ -1532,7 +1521,7 @@
 
             // X-axis time labels
             ctx.textAlign = 'center';
-            const timeSteps = Math.min(6, Math.floor(duration / 30));
+            const timeSteps = Math.max(1, Math.min(6, Math.ceil(duration / 30)));
             for (let i = 0; i <= timeSteps; i++) {
                 const t = (duration / timeSteps) * i;
                 const x = pad.left + (t / duration) * plotW;
