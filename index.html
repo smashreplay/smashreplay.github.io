@@ -1335,6 +1335,57 @@
             document.getElementById('perfCodec').textContent = codecInfo;
         }
 
+        // Ensure the video element is fully buffered and the decoder is warmed up.
+        // On mobile, the browser may have metadata but not the actual video data yet,
+        // causing extremely slow seeks during processing.
+        async function warmUpVideo(video, statusMsg) {
+            // Step 1: Wait for enough data to play through
+            if (video.readyState < 4) { // HAVE_ENOUGH_DATA
+                showStatus(statusMsg + ' Buffering video...', 'processing');
+                await new Promise((resolve) => {
+                    // Check if we already have enough data
+                    if (video.readyState >= 3) { resolve(); return; } // HAVE_FUTURE_DATA is acceptable
+                    const onReady = () => {
+                        if (video.readyState >= 3) {
+                            video.removeEventListener('canplay', onReady);
+                            video.removeEventListener('canplaythrough', onReady);
+                            video.removeEventListener('loadeddata', onReady);
+                            clearTimeout(fallback);
+                            resolve();
+                        }
+                    };
+                    video.addEventListener('canplay', onReady);
+                    video.addEventListener('canplaythrough', onReady);
+                    video.addEventListener('loadeddata', onReady);
+                    // Don't wait forever — 10s max, then proceed anyway
+                    const fallback = setTimeout(() => {
+                        video.removeEventListener('canplay', onReady);
+                        video.removeEventListener('canplaythrough', onReady);
+                        video.removeEventListener('loadeddata', onReady);
+                        console.warn('[Perf] Video warmup timed out at readyState:', video.readyState);
+                        resolve();
+                    }, 10000);
+                });
+            }
+
+            // Step 2: Prime the decoder by seeking to frame 0 and waiting for it to render.
+            // This forces the browser to parse the keyframe index and decode the first frame.
+            showStatus(statusMsg + ' Warming up decoder...', 'processing');
+            video.currentTime = 0.001; // Tiny offset to force a real seek
+            await new Promise((resolve) => {
+                let resolved = false;
+                const done = () => { if (!resolved) { resolved = true; resolve(); } };
+                const timeout = setTimeout(done, 5000);
+                video.addEventListener('seeked', () => { clearTimeout(timeout); done(); }, { once: true });
+            });
+
+            console.log('[Perf] Video warmed up. readyState:', video.readyState,
+                'buffered ranges:', video.buffered.length > 0
+                    ? Array.from({length: video.buffered.length}, (_, i) =>
+                        `${video.buffered.start(i).toFixed(1)}-${video.buffered.end(i).toFixed(1)}s`).join(', ')
+                    : 'none');
+        }
+
         function switchTab(tab) {
             currentTab = tab;
             document.getElementById('fileTab').classList.toggle('active', tab === 'file');
@@ -1415,6 +1466,12 @@
 
                 // Set up keyboard navigation
                 setupKeyboardNavigation();
+
+                // Force first frame to render (prevents black preview on mobile).
+                // A black preview means the decoder hasn't parsed the video data yet,
+                // which would cause extremely slow seeking during processing.
+                video.currentTime = 0.001;
+                processingVideo.currentTime = 0.001;
 
                 showStatus('Video loaded successfully! Select basket regions to start.', 'complete');
             };
@@ -2018,6 +2075,12 @@
                 ? ` Detecting motion in ${basketRegions.length} region(s).`
                 : ' Using full-frame motion detection.';
             showStatus('Processing video...' + regionMsg, 'processing');
+
+            // Warm up the video decoder before processing — this ensures the browser
+            // has fully buffered the video data and parsed the keyframe index.
+            // Without this, mobile browsers often seek extremely slowly on first load
+            // (black preview = data not ready), but fast on second load (cached).
+            await warmUpVideo(video, 'Processing video...' + regionMsg);
 
             const duration = video.duration;
             const fps = 3;
