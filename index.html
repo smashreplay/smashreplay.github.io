@@ -2979,7 +2979,7 @@
         }
 
         async function extractClip(highlight) {
-            const data = await getVideoData();
+            let data = await getVideoData();
             if (!data) return null;
 
             const ext = guessVideoExtension();
@@ -2999,9 +2999,8 @@
             progressEl.style.width = '10%';
 
             try {
-                // No .slice(0) needed — getVideoData() returns a fresh buffer
-                // each time, so transfer/detach is fine.
                 await ffmpegInstance.writeFile(inputName, new Uint8Array(data));
+                data = null; // release JS-heap copy so GC can reclaim it
                 progressEl.style.width = '30%';
                 textEl.textContent = 'Trimming clip...';
 
@@ -3043,6 +3042,12 @@
             const loaded = await loadFFmpeg();
             if (!loaded) return;
 
+            // Warn on very large videos (>500 MB)
+            const fileSizeMB = videoFile ? videoFile.size / (1024 * 1024) : 0;
+            if (fileSizeMB > 500) {
+                showStatus('Large video — export may be slow. If the page reloads, try a shorter video.', 'processing');
+            }
+
             const blob = await extractClip(highlight);
             if (!blob) return;
 
@@ -3069,11 +3074,13 @@
             const loaded = await loadFFmpeg();
             if (!loaded) return;
 
-            const data = await getVideoData();
-            if (!data) return;
+            // Check file size and warn on very large videos (>500 MB)
+            const fileSizeMB = videoFile ? videoFile.size / (1024 * 1024) : 0;
+            if (fileSizeMB > 500) {
+                showStatus('Large video — export may be slow. If the page reloads, try a shorter video.', 'processing');
+            }
 
             const ext = guessVideoExtension();
-            const inputName = `input.${ext}`;
 
             const overlay = document.getElementById('ffmpegLoading');
             const titleEl = document.getElementById('ffmpegLoadingTitle');
@@ -3081,24 +3088,31 @@
             const progressEl = document.getElementById('ffmpegProgressFill');
             overlay.classList.add('active');
             titleEl.textContent = 'Exporting Highlights...';
-            textEl.textContent = 'Writing video data...';
             progressEl.style.width = '5%';
 
+            // Sort highlights by timestamp so the stitched video is in order
+            const sorted = [...enabled].sort((a, b) => a.timestamp - b.timestamp);
+
             try {
-                // Write source video once (fresh buffer, no .slice(0) needed)
-                await ffmpegInstance.writeFile(inputName, new Uint8Array(data));
-                progressEl.style.width = '15%';
+                // ── Phase 1: Extract each segment one at a time ──
+                // For each clip we: read video → write to MEMFS → extract segment
+                // → read segment back to JS → wipe MEMFS.  This keeps peak WASM
+                // memory at ~1× video size instead of video + all segments.
+                const segmentBuffers = []; // small Uint8Arrays (~4 s each)
+                const inputName = `input.${ext}`;
 
-                // Sort highlights by timestamp so the stitched video is in order
-                const sorted = [...enabled].sort((a, b) => a.timestamp - b.timestamp);
-
-                // Extract each clip as a separate segment
-                const segmentNames = [];
                 for (let i = 0; i < sorted.length; i++) {
                     const h = sorted[i];
-                    const segName = `seg${i}.${ext}`;
+                    const segName = `seg.${ext}`;
                     const startTime = Math.max(0, h.timestamp - 3);
                     const duration = 4;
+
+                    textEl.textContent = `Reading video for clip ${i + 1}...`;
+                    let data = await getVideoData();
+                    if (!data) throw new Error('Could not read video data');
+
+                    await ffmpegInstance.writeFile(inputName, new Uint8Array(data));
+                    data = null; // allow GC of the JS-heap copy
 
                     textEl.textContent = `Trimming clip ${i + 1} of ${sorted.length}...`;
                     await ffmpegInstance.exec([
@@ -3109,25 +3123,37 @@
                         '-avoid_negative_ts', 'make_zero',
                         segName
                     ]);
-                    segmentNames.push(segName);
-                    progressEl.style.width = (15 + 50 * (i + 1) / sorted.length) + '%';
+
+                    // Read the small segment into JS, then wipe MEMFS completely
+                    const segData = await ffmpegInstance.readFile(segName);
+                    await ffmpegInstance.deleteFile(inputName).catch(() => {});
+                    await ffmpegInstance.deleteFile(segName).catch(() => {});
+
+                    segmentBuffers.push(segData);
+                    progressEl.style.width = (5 + 60 * (i + 1) / sorted.length) + '%';
                 }
 
-                // Free the full source video from MEMFS now that all segments
-                // are extracted — this is the biggest memory win for large files.
-                await ffmpegInstance.deleteFile(inputName).catch(() => {});
+                // ── Phase 2: Concatenate the small segments ──
+                // MEMFS is empty here; we only write back the tiny clips.
+                let outputBlob;
+                const mimeType = ext === 'webm' ? 'video/webm' : 'video/mp4';
 
-                let outputName;
-                if (segmentNames.length === 1) {
-                    // Single clip — just use it directly
-                    outputName = segmentNames[0];
+                if (segmentBuffers.length === 1) {
+                    outputBlob = new Blob([segmentBuffers[0].buffer], { type: mimeType });
                 } else {
-                    // Concatenate segments via concat demuxer
                     textEl.textContent = 'Stitching clips together...';
+                    const segmentNames = [];
+                    for (let i = 0; i < segmentBuffers.length; i++) {
+                        const name = `seg${i}.${ext}`;
+                        await ffmpegInstance.writeFile(name, segmentBuffers[i]);
+                        segmentNames.push(name);
+                    }
+                    segmentBuffers.length = 0; // free JS copies
+
                     const concatList = segmentNames.map(s => `file '${s}'`).join('\n');
                     await ffmpegInstance.writeFile('concat.txt', new TextEncoder().encode(concatList));
 
-                    outputName = `output.${ext}`;
+                    const outputName = `output.${ext}`;
                     await ffmpegInstance.exec([
                         '-f', 'concat',
                         '-safe', '0',
@@ -3135,28 +3161,21 @@
                         '-c', 'copy',
                         outputName
                     ]);
+
+                    // Cleanup segments + concat list
                     await ffmpegInstance.deleteFile('concat.txt').catch(() => {});
+                    for (const s of segmentNames) await ffmpegInstance.deleteFile(s).catch(() => {});
 
-                    // Free segment files now that they've been concatenated —
-                    // only the final output remains in MEMFS.
-                    for (const seg of segmentNames) {
-                        await ffmpegInstance.deleteFile(seg).catch(() => {});
-                    }
+                    const outputData = await ffmpegInstance.readFile(outputName);
+                    await ffmpegInstance.deleteFile(outputName).catch(() => {});
+
+                    outputBlob = new Blob([outputData.buffer], { type: mimeType });
                 }
-                progressEl.style.width = '85%';
-
-                textEl.textContent = 'Reading output...';
-                const outputData = await ffmpegInstance.readFile(outputName);
                 progressEl.style.width = '95%';
-
-                // Cleanup final output file
-                await ffmpegInstance.deleteFile(outputName).catch(() => {});
 
                 overlay.classList.remove('active');
 
-                const mimeType = ext === 'webm' ? 'video/webm' : 'video/mp4';
-                const blob = new Blob([outputData.buffer], { type: mimeType });
-                const url = URL.createObjectURL(blob);
+                const url = URL.createObjectURL(outputBlob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `highlights.${ext}`;
@@ -3167,8 +3186,8 @@
             } catch (err) {
                 console.error('Export error:', err);
                 overlay.classList.remove('active');
-                // Cleanup MEMFS on error to avoid lingering memory
-                const filesToClean = [inputName, `output.${ext}`, 'concat.txt'];
+                // Best-effort MEMFS cleanup on failure
+                const filesToClean = [`input.${ext}`, `output.${ext}`, `seg.${ext}`, 'concat.txt'];
                 for (let i = 0; i < enabled.length; i++) filesToClean.push(`seg${i}.${ext}`);
                 for (const f of filesToClean) await ffmpegInstance.deleteFile(f).catch(() => {});
                 showStatus('Failed to export clips. The video may be too large for your browser — try fewer clips or a shorter video.', 'error');
