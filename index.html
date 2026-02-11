@@ -783,6 +783,134 @@
             min-width: 40px;
             text-align: right;
         }
+
+        /* Highlight toggle switch */
+        .highlight-toggle {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+
+        .highlight-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #ccc;
+            border-radius: 22px;
+            transition: 0.2s;
+        }
+
+        .toggle-slider:before {
+            content: "";
+            position: absolute;
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+
+        .highlight-toggle input:checked + .toggle-slider {
+            background: #667eea;
+        }
+
+        .highlight-toggle input:checked + .toggle-slider:before {
+            transform: translateX(18px);
+        }
+
+        .highlight-item.disabled {
+            opacity: 0.4;
+            border-color: #e1e8ed !important;
+            box-shadow: none !important;
+        }
+
+        .highlight-item.disabled .highlight-thumbnail {
+            filter: grayscale(1);
+        }
+
+        /* Highlight action buttons */
+        .highlight-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .highlight-actions button {
+            padding: 4px 8px;
+            border: 1px solid #e1e8ed;
+            background: white;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: #555;
+        }
+
+        .highlight-actions button:hover {
+            border-color: #667eea;
+            color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .highlight-actions button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .highlight-actions button.loading {
+            pointer-events: none;
+        }
+
+        /* FFmpeg loading overlay */
+        .ffmpeg-loading {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .ffmpeg-loading.active {
+            display: flex;
+        }
+
+        .ffmpeg-loading-card {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 320px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .ffmpeg-loading-card h3 {
+            margin-bottom: 12px;
+            color: #333;
+        }
+
+        .ffmpeg-loading-card .progress-bar {
+            margin-bottom: 8px;
+        }
+
+        .ffmpeg-loading-card p {
+            font-size: 13px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -967,12 +1095,18 @@
 
                         <div class="highlights-list" id="highlightsList"></div>
 
-                        <div class="export-section">
+                        <div class="export-section" style="display: flex; flex-wrap: wrap; gap: 8px;">
                             <button class="btn btn-secondary" onclick="exportTimestamps()">
                                 📋 Copy Timestamps
                             </button>
-                            <button class="btn btn-secondary" onclick="exportJSON()" style="margin-left: 10px;">
+                            <button class="btn btn-secondary" onclick="exportJSON()">
                                 💾 Download JSON
+                            </button>
+                            <button class="btn btn-secondary" onclick="exportClip()" id="exportClipBtn">
+                                🎬 Export Clips
+                            </button>
+                            <button class="btn btn-secondary" onclick="shareHighlights()" id="shareBtn" style="display: none;">
+                                📤 Share
                             </button>
                         </div>
                     </div>
@@ -981,6 +1115,17 @@
 
             <!-- Status Messages -->
             <div id="statusMessage" style="display: none;"></div>
+
+            <!-- FFmpeg Loading Overlay -->
+            <div class="ffmpeg-loading" id="ffmpegLoading">
+                <div class="ffmpeg-loading-card">
+                    <h3 id="ffmpegLoadingTitle">Loading Video Editor...</h3>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="ffmpegProgressFill" style="width: 0%"></div>
+                    </div>
+                    <p id="ffmpegLoadingText">Downloading FFmpeg (~30 MB, first time only)</p>
+                </div>
+            </div>
 
             <!-- Empty State -->
             <div class="empty-state" id="emptyState">
@@ -1001,14 +1146,14 @@
         let settings = {
             minGap: 3  // Minimum gap between clips in seconds
         };
-        
+
         // Region selection variables - now supports multiple regions
         let basketRegions = [];
         let isSelectingRegion = false;
         let selectionCanvas = null;
         let selectionCtx = null;
         const MAX_REGIONS = 2;
-        
+
         // Playback mode variables
         let isPlayingAll = false;
         let currentHighlightIndex = 0;
@@ -1025,6 +1170,12 @@
         const CEILING_K = 6;       // Motion above threshold * this = too big (person)
         const MIN_THRESHOLD = 2.5; // Floor so tiny noise doesn't trigger in dead-still scenes
         let regionEMAs = [];       // [{mean, variance, initialized}] per region
+
+        // FFmpeg state
+        let ffmpegInstance = null;
+        let ffmpegLoaded = false;
+        let ffmpegLoading = false;
+        let videoDataForFFmpeg = null; // ArrayBuffer of original video
 
         function switchTab(tab) {
             currentTab = tab;
@@ -1097,6 +1248,7 @@
                 document.getElementById('settingsPanel').style.display = 'block';
                 highlights = [];
                 basketRegions = [];
+                videoDataForFFmpeg = null; // Clear cached video data for new video
                 updateHighlightsDisplay();
                 updateRegionDisplay();
 
@@ -1784,6 +1936,7 @@
                                     timestamp: time,
                                     confidence: Math.min(100, detectionResult.score),
                                     thumbnail: thumbnail,
+                                    enabled: true,
                                     reasons: detectionResult.reasons,
                                     debugData: {
                                         motion: detectionResult.motion,
@@ -2057,25 +2210,42 @@
             return thumbCanvas.toDataURL('image/jpeg', 0.8);
         }
 
+        function getEnabledHighlights() {
+            return highlights.filter(h => h.enabled !== false);
+        }
+
+        function toggleHighlight(index, event) {
+            event.stopPropagation();
+            highlights[index].enabled = !highlights[index].enabled;
+            updateHighlightsDisplay();
+        }
+
         function updateHighlightsDisplay() {
             const section = document.getElementById('highlightsSection');
             const list = document.getElementById('highlightsList');
             const count = document.getElementById('highlightCount');
-            
+
             if (highlights.length === 0) {
                 section.style.display = 'none';
                 return;
             }
-            
+
             section.style.display = 'block';
-            count.textContent = highlights.length + (highlights.length === 1 ? ' basket' : ' baskets');
-            
+            const enabledCount = getEnabledHighlights().length;
+            count.textContent = enabledCount + ' of ' + highlights.length + (highlights.length === 1 ? ' basket' : ' baskets');
+
+            const canShare = !!navigator.share;
+            const shareBtn = document.getElementById('shareBtn');
+            if (shareBtn) shareBtn.style.display = canShare ? 'inline-flex' : 'none';
+
             list.innerHTML = highlights.map((h, i) => {
                 const reasons = h.reasons ? h.reasons.join(', ') : 'Unknown';
                 const debugData = h.debugData || {};
-                
+                const isEnabled = h.enabled !== false;
+                const disabledClass = isEnabled ? '' : ' disabled';
+
                 return `
-                <div class="highlight-item" onclick="jumpToHighlight(${h.timestamp})" title="Click to play">
+                <div class="highlight-item${disabledClass}" onclick="jumpToHighlight(${h.timestamp})" title="Click to play">
                     ${h.thumbnail ? `
                         <div class="highlight-thumbnail">
                             <img src="${h.thumbnail}" alt="Basket at ${formatTime(h.timestamp)}">
@@ -2084,7 +2254,13 @@
                     ` : ''}
                     <div class="highlight-number">${i + 1}</div>
                     <div class="highlight-info">
-                        <div class="highlight-time">${formatTime(h.timestamp)}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div class="highlight-time">${formatTime(h.timestamp)}</div>
+                            <label class="highlight-toggle" onclick="event.stopPropagation()">
+                                <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleHighlight(${i}, event)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
                         <div>
                             <span class="confidence">Score: ${Math.round(h.confidence)}</span>
                         </div>
@@ -2093,24 +2269,28 @@
                         </div>
                         ${debugData.motion !== undefined ? `
                         <div style="font-size: 9px; color: #999; margin-top: 4px; font-family: monospace;">
-                            M:${debugData.motion.toFixed(1)} 
-                            R:${debugData.rim.toFixed(1)} 
+                            M:${debugData.motion.toFixed(1)}
+                            R:${debugData.rim.toFixed(1)}
                             B:${debugData.ball.toFixed(1)}
                             ${debugData.motionDrop ? '📉' : ''}
                             ${debugData.rimVisible ? '🎯' : ''}
                             ${debugData.ballPresent ? '🏀' : ''}
                         </div>
                         ` : ''}
+                        <div class="highlight-actions" onclick="event.stopPropagation()">
+                            <button onclick="exportSingleClip(${i})" title="Export this clip">🎬 Clip</button>
+                            ${canShare ? `<button onclick="shareSingleHighlight(${i})" title="Share this highlight">📤 Share</button>` : ''}
+                        </div>
                     </div>
                 </div>
             `}).join('');
-            
+
             // Show Play All button when highlights are available
             const playAllBtn = document.getElementById('playAllBtn');
             if (playAllBtn) {
-                playAllBtn.style.display = highlights.length > 0 ? 'block' : 'none';
+                playAllBtn.style.display = enabledCount > 0 ? 'block' : 'none';
             }
-            
+
             // Enable playback controls when highlights are available
             enablePlaybackControls();
         }
@@ -2142,28 +2322,30 @@
         }
 
         function exportTimestamps() {
-            const text = highlights.map((h, i) => 
+            const enabled = getEnabledHighlights();
+            const text = enabled.map((h, i) =>
                 `${i + 1}. ${formatTime(h.timestamp)} (${Math.round(h.confidence)}% confidence)`
             ).join('\n');
-            
+
             navigator.clipboard.writeText(text).then(() => {
-                showStatus('Timestamps copied to clipboard!', 'complete');
+                showStatus(`${enabled.length} timestamp(s) copied to clipboard!`, 'complete');
             });
         }
 
         function exportJSON() {
+            const enabled = getEnabledHighlights();
             const data = {
                 videoSource: currentTab === 'file' ? 'local file' : document.getElementById('videoUrl').value,
                 processedDate: new Date().toISOString(),
-                totalHighlights: highlights.length,
-                highlights: highlights.map((h, i) => ({
+                totalHighlights: enabled.length,
+                highlights: enabled.map((h, i) => ({
                     number: i + 1,
                     timestamp: h.timestamp,
                     formattedTime: formatTime(h.timestamp),
                     confidence: Math.round(h.confidence)
                 }))
             };
-            
+
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -2174,55 +2356,82 @@
         }
 
         function playPreviousClip() {
-            if (currentHighlightIndex > 0) {
-                currentHighlightIndex--;
+            const prev = findPrevEnabledIndex(currentHighlightIndex - 1);
+            if (prev >= 0) {
+                currentHighlightIndex = prev;
                 playNextHighlight();
             }
         }
 
         function playNextClip() {
-            if (currentHighlightIndex < highlights.length - 1) {
-                currentHighlightIndex++;
-                playNextHighlight();
-            } else {
+            let next = findNextEnabledIndex(currentHighlightIndex + 1);
+            if (next < 0) {
                 // Loop back to start
-                currentHighlightIndex = 0;
+                next = findNextEnabledIndex(0);
+            }
+            if (next >= 0) {
+                currentHighlightIndex = next;
                 playNextHighlight();
             }
         }
 
         function playAllHighlights() {
-            if (highlights.length === 0) return;
-            
+            const enabled = getEnabledHighlights();
+            if (enabled.length === 0) return;
+
             isPlayingAll = true;
             currentHighlightIndex = 0;
-            
+
+            // Skip to first enabled highlight
+            while (currentHighlightIndex < highlights.length && highlights[currentHighlightIndex].enabled === false) {
+                currentHighlightIndex++;
+            }
+
             playNextHighlight();
         }
 
+        function findNextEnabledIndex(fromIndex) {
+            for (let i = fromIndex; i < highlights.length; i++) {
+                if (highlights[i].enabled !== false) return i;
+            }
+            return -1;
+        }
+
+        function findPrevEnabledIndex(fromIndex) {
+            for (let i = fromIndex; i >= 0; i--) {
+                if (highlights[i].enabled !== false) return i;
+            }
+            return -1;
+        }
+
         function playNextHighlight() {
-            if (!isPlayingAll || currentHighlightIndex >= highlights.length) {
+            // Skip disabled highlights
+            if (isPlayingAll && currentHighlightIndex < highlights.length && highlights[currentHighlightIndex].enabled === false) {
+                currentHighlightIndex = findNextEnabledIndex(currentHighlightIndex);
+            }
+
+            if (!isPlayingAll || currentHighlightIndex < 0 || currentHighlightIndex >= highlights.length) {
                 stopPlayingAll();
                 return;
             }
-            
+
             const highlight = highlights[currentHighlightIndex];
             const video = document.getElementById('videoPlayer');
-            
+            const enabledList = getEnabledHighlights();
+            const enabledIdx = enabledList.indexOf(highlight);
+
             // Show overlay
             const overlay = document.getElementById('videoOverlay');
-            console.log('Showing overlay, element:', overlay);
             overlay.style.display = 'block';
-            document.getElementById('overlayClipNumber').textContent = currentHighlightIndex + 1;
-            document.getElementById('overlayTotalClips').textContent = highlights.length;
+            document.getElementById('overlayClipNumber').textContent = enabledIdx + 1;
+            document.getElementById('overlayTotalClips').textContent = enabledList.length;
             document.getElementById('overlayTimestamp').textContent = formatTime(highlight.timestamp);
-            console.log('Overlay should now be visible');
-            
+
             // Highlight the current item in the list
             document.querySelectorAll('.highlight-item').forEach((item, idx) => {
                 item.classList.toggle('playing', idx === currentHighlightIndex);
             });
-            
+
             // Scroll to current highlight in theater mode WITHOUT focus jump
             if (isTheaterMode) {
                 const currentItem = document.querySelectorAll('.highlight-item')[currentHighlightIndex];
@@ -2230,40 +2439,41 @@
                     const container = document.getElementById('highlightsList');
                     const itemRect = currentItem.getBoundingClientRect();
                     const containerRect = container.getBoundingClientRect();
-                    
+
                     // Calculate scroll position to center the item
                     const scrollLeft = currentItem.offsetLeft - (containerRect.width / 2) + (itemRect.width / 2);
                     container.scrollLeft = scrollLeft;
                 }
             }
-            
+
             const startTime = Math.max(0, highlight.timestamp - 3);
             const endTime = highlight.timestamp + 1;
             const clipDuration = endTime - startTime;
-            
+
             document.getElementById('overlayClipDuration').textContent = clipDuration.toFixed(1) + 's';
-            
+
             video.currentTime = startTime;
             video.play();
-            
+
             // Remove any existing listener
             if (playAllListener) {
                 video.removeEventListener('timeupdate', playAllListener);
             }
-            
+
             // Set up listener to move to next highlight and update progress
             playAllListener = () => {
                 const elapsed = video.currentTime - startTime;
                 const progress = Math.min(100, (elapsed / clipDuration) * 100);
-                
+
                 // Update overlay progress
                 document.getElementById('overlayProgress').style.width = progress + '%';
                 document.getElementById('overlayClipTime').textContent = elapsed.toFixed(1) + 's';
-                
+
                 if (video.currentTime >= endTime) {
                     video.removeEventListener('timeupdate', playAllListener);
-                    currentHighlightIndex++;
-                    
+                    // Find next enabled highlight
+                    currentHighlightIndex = findNextEnabledIndex(currentHighlightIndex + 1);
+
                     // Small pause between highlights
                     setTimeout(() => {
                         if (isPlayingAll) {
@@ -2272,7 +2482,7 @@
                     }, 300);
                 }
             };
-            
+
             video.addEventListener('timeupdate', playAllListener);
         }
 
@@ -2341,6 +2551,299 @@
             statusEl.textContent = message;
             statusEl.className = 'status ' + (type || '');
             statusEl.style.display = 'flex';
+        }
+
+        // ─── FFmpeg WASM Integration ───
+
+        async function loadFFmpeg() {
+            if (ffmpegLoaded) return true;
+            if (ffmpegLoading) return false;
+            ffmpegLoading = true;
+
+            const overlay = document.getElementById('ffmpegLoading');
+            const titleEl = document.getElementById('ffmpegLoadingTitle');
+            const textEl = document.getElementById('ffmpegLoadingText');
+            const progressEl = document.getElementById('ffmpegProgressFill');
+
+            overlay.classList.add('active');
+            titleEl.textContent = 'Loading Video Editor...';
+            textEl.textContent = 'Downloading FFmpeg (~30 MB, first time only)';
+            progressEl.style.width = '10%';
+
+            try {
+                // Dynamically load FFmpeg scripts from CDN
+                await loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js')
+                    .catch(() => loadScript('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js'));
+                progressEl.style.width = '20%';
+
+                await loadScript('https://unpkg.com/@ffmpeg/util@0.12.2/dist/umd/util.js')
+                    .catch(() => loadScript('https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/umd/util.js'));
+                progressEl.style.width = '30%';
+
+                textEl.textContent = 'Initializing FFmpeg core...';
+
+                const { FFmpeg } = FFmpegWASM;
+                const { toBlobURL } = FFmpegUtil;
+
+                ffmpegInstance = new FFmpeg();
+
+                ffmpegInstance.on('progress', ({ progress }) => {
+                    const pct = Math.round(Math.max(0, Math.min(100, progress * 100)));
+                    progressEl.style.width = pct + '%';
+                    textEl.textContent = `Processing: ${pct}%`;
+                });
+
+                const coreURL = await toBlobURL(
+                    'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js',
+                    'text/javascript'
+                );
+                progressEl.style.width = '50%';
+
+                const wasmURL = await toBlobURL(
+                    'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm',
+                    'application/wasm'
+                );
+                progressEl.style.width = '80%';
+
+                await ffmpegInstance.load({ coreURL, wasmURL });
+                progressEl.style.width = '100%';
+
+                ffmpegLoaded = true;
+                ffmpegLoading = false;
+                overlay.classList.remove('active');
+                return true;
+            } catch (err) {
+                console.error('FFmpeg load error:', err);
+                ffmpegLoading = false;
+                overlay.classList.remove('active');
+                showStatus('Failed to load FFmpeg. Check your network connection and try again.', 'error');
+                return false;
+            }
+        }
+
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                // Skip if already loaded
+                if (document.querySelector(`script[src="${src}"]`)) {
+                    resolve();
+                    return;
+                }
+                const s = document.createElement('script');
+                s.src = src;
+                s.onload = resolve;
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
+
+        async function getVideoData() {
+            if (videoDataForFFmpeg) return videoDataForFFmpeg;
+
+            if (currentTab === 'file' && videoFile) {
+                videoDataForFFmpeg = await videoFile.arrayBuffer();
+                return videoDataForFFmpeg;
+            } else {
+                // For URL-based videos, try to fetch
+                const video = document.getElementById('videoPlayer');
+                try {
+                    const response = await fetch(video.src);
+                    videoDataForFFmpeg = await response.arrayBuffer();
+                    return videoDataForFFmpeg;
+                } catch (err) {
+                    showStatus('Cannot access video data for clipping. Try uploading the video as a local file.', 'error');
+                    return null;
+                }
+            }
+        }
+
+        function guessVideoExtension() {
+            if (videoFile && videoFile.name) {
+                const ext = videoFile.name.split('.').pop().toLowerCase();
+                if (['mp4', 'webm', 'mkv', 'mov', 'avi'].includes(ext)) return ext;
+            }
+            return 'mp4';
+        }
+
+        async function extractClip(highlight) {
+            const { fetchFile } = FFmpegUtil;
+            const data = await getVideoData();
+            if (!data) return null;
+
+            const ext = guessVideoExtension();
+            const inputName = `input.${ext}`;
+            const outputName = `clip.${ext}`;
+
+            const startTime = Math.max(0, highlight.timestamp - 3);
+            const duration = 4; // 3 seconds before + 1 second after
+
+            const overlay = document.getElementById('ffmpegLoading');
+            const titleEl = document.getElementById('ffmpegLoadingTitle');
+            const textEl = document.getElementById('ffmpegLoadingText');
+            const progressEl = document.getElementById('ffmpegProgressFill');
+            overlay.classList.add('active');
+            titleEl.textContent = 'Extracting Clip...';
+            textEl.textContent = 'Writing video data...';
+            progressEl.style.width = '10%';
+
+            try {
+                await ffmpegInstance.writeFile(inputName, new Uint8Array(data));
+                progressEl.style.width = '30%';
+                textEl.textContent = 'Trimming clip...';
+
+                await ffmpegInstance.exec([
+                    '-ss', startTime.toFixed(2),
+                    '-i', inputName,
+                    '-t', duration.toFixed(2),
+                    '-c', 'copy',
+                    '-avoid_negative_ts', 'make_zero',
+                    outputName
+                ]);
+                progressEl.style.width = '90%';
+
+                const outputData = await ffmpegInstance.readFile(outputName);
+                progressEl.style.width = '100%';
+
+                // Cleanup
+                await ffmpegInstance.deleteFile(inputName).catch(() => {});
+                await ffmpegInstance.deleteFile(outputName).catch(() => {});
+
+                overlay.classList.remove('active');
+
+                const mimeType = ext === 'webm' ? 'video/webm' : 'video/mp4';
+                return new Blob([outputData.buffer], { type: mimeType });
+            } catch (err) {
+                console.error('Clip extraction error:', err);
+                overlay.classList.remove('active');
+                showStatus('Failed to extract clip. The video format may not be supported.', 'error');
+                return null;
+            }
+        }
+
+        async function exportSingleClip(index) {
+            const highlight = highlights[index];
+
+            const loaded = await loadFFmpeg();
+            if (!loaded) return;
+
+            const blob = await extractClip(highlight);
+            if (!blob) return;
+
+            const ext = guessVideoExtension();
+            const filename = `highlight-${index + 1}-${formatTime(highlight.timestamp).replace(':', 'm').replace('.', 's')}.${ext}`;
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showStatus(`Clip ${index + 1} exported!`, 'complete');
+        }
+
+        async function exportClip() {
+            const enabled = getEnabledHighlights();
+            if (enabled.length === 0) {
+                showStatus('No enabled highlights to export.', 'error');
+                return;
+            }
+
+            const loaded = await loadFFmpeg();
+            if (!loaded) return;
+
+            for (let i = 0; i < enabled.length; i++) {
+                const h = enabled[i];
+                const globalIdx = highlights.indexOf(h);
+
+                const overlay = document.getElementById('ffmpegLoading');
+                const titleEl = document.getElementById('ffmpegLoadingTitle');
+                titleEl.textContent = `Exporting Clip ${i + 1} of ${enabled.length}...`;
+
+                const blob = await extractClip(h);
+                if (!blob) continue;
+
+                const ext = guessVideoExtension();
+                const filename = `highlight-${globalIdx + 1}-${formatTime(h.timestamp).replace(':', 'm').replace('.', 's')}.${ext}`;
+
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                // Small delay between downloads
+                if (i < enabled.length - 1) {
+                    await new Promise(r => setTimeout(r, 500));
+                }
+            }
+
+            showStatus(`${enabled.length} clip(s) exported!`, 'complete');
+        }
+
+        // ─── Native Share Sheet ───
+
+        async function shareSingleHighlight(index) {
+            const highlight = highlights[index];
+            const text = `Basketball Highlight #${index + 1} at ${formatTime(highlight.timestamp)} (Score: ${Math.round(highlight.confidence)})`;
+
+            // Try sharing with video clip if FFmpeg is available
+            if (navigator.canShare && videoFile) {
+                try {
+                    const loaded = await loadFFmpeg();
+                    if (loaded) {
+                        const blob = await extractClip(highlight);
+                        if (blob) {
+                            const ext = guessVideoExtension();
+                            const file = new File([blob], `highlight-${index + 1}.${ext}`, { type: blob.type });
+                            const shareData = { text, files: [file] };
+
+                            if (navigator.canShare(shareData)) {
+                                await navigator.share(shareData);
+                                return;
+                            }
+                        }
+                    }
+                } catch (err) {
+                    if (err.name === 'AbortError') return; // User cancelled
+                    console.warn('File share failed, falling back to text share:', err);
+                }
+            }
+
+            // Fallback: share text only
+            try {
+                await navigator.share({ text });
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    // Final fallback: copy to clipboard
+                    navigator.clipboard.writeText(text).then(() => {
+                        showStatus('Highlight info copied to clipboard!', 'complete');
+                    });
+                }
+            }
+        }
+
+        async function shareHighlights() {
+            const enabled = getEnabledHighlights();
+            if (enabled.length === 0) {
+                showStatus('No enabled highlights to share.', 'error');
+                return;
+            }
+
+            const lines = enabled.map((h, i) =>
+                `${i + 1}. ${formatTime(h.timestamp)} (Score: ${Math.round(h.confidence)})`
+            );
+            const text = `Basketball Highlights (${enabled.length} clips):\n${lines.join('\n')}`;
+
+            try {
+                await navigator.share({ text });
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    navigator.clipboard.writeText(text).then(() => {
+                        showStatus('Highlights copied to clipboard!', 'complete');
+                    });
+                }
+            }
         }
     </script>
 </body>
