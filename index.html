@@ -1445,6 +1445,7 @@
                 highlights = [];
                 basketRegions = [];
                 videoDataForFFmpeg = null; // Clear cached video data for new video
+                _slowRetryCount = 0;       // Reset slow-processing retry counter
                 updateHighlightsDisplay();
                 updateRegionDisplay();
 
@@ -1861,6 +1862,8 @@
         // Called when slow processing is detected — stops processing,
         // reloads the video to populate the browser cache, then retries.
         let _processingAborted = false;
+        let _slowRetryCount = 0;       // How many times we've auto-reloaded for slow processing
+        const _MAX_AUTO_RETRIES = 3;   // Auto-reload up to this many times before showing manual button
 
         function reloadAndRetry() {
             // Abort current processing loop
@@ -1871,7 +1874,8 @@
             const banner = document.getElementById('slowBanner');
             if (banner) banner.remove();
 
-            showStatus('Reloading video to warm up decoder...', 'processing');
+            _slowRetryCount++;
+            showStatus(`Reloading video to warm up decoder... (attempt ${_slowRetryCount})`, 'processing');
 
             const video = document.getElementById('videoPlayer');
             const processingVideo = document.getElementById('processingVideo');
@@ -1891,7 +1895,7 @@
                     video.currentTime = 0.001;
                     processingVideo.currentTime = 0.001;
 
-                    showStatus('Video reloaded! Starting detection...', 'complete');
+                    showStatus(`Video reloaded (attempt ${_slowRetryCount}). Starting detection...`, 'complete');
                     // Auto-start processing after a brief moment for decoder to settle
                     setTimeout(() => processVideo(), 500);
                 };
@@ -2248,23 +2252,33 @@
                 document.getElementById('framesAnalyzed').textContent = framesProcessed;
                 document.getElementById('currentProcessTime').textContent = formatTime(time);
 
-                // Slow-processing detection: after 5 frames, check if we're crawling
-                if (framesProcessed === 5 && !document.getElementById('slowBanner')) {
+                // Slow-processing detection: after 2 frames, check if we're crawling
+                if (framesProcessed === 2 && !document.getElementById('slowBanner')) {
                     const avgFrame = perfStats.frameTimes.reduce((a, b) => a + b, 0) / perfStats.frameTimes.length;
                     if (avgFrame > 1500) {
-                        // Processing is very slow — likely the video isn't buffered
-                        const totalFrames = Math.ceil(duration / interval);
-                        const estMinutes = ((totalFrames * avgFrame) / 60000).toFixed(0);
-                        const banner = document.createElement('div');
-                        banner.id = 'slowBanner';
-                        banner.className = 'slow-processing-banner';
-                        banner.innerHTML = `
-                            <p><strong>Slow processing detected</strong><br>
-                            Avg ${(avgFrame / 1000).toFixed(1)}s per frame — at this rate it would take ~${estMinutes} min.<br>
-                            Reloading the video usually fixes this.</p>
-                            <button onclick="reloadAndRetry()">Reload Video & Retry</button>
-                        `;
-                        document.getElementById('progressContainer').appendChild(banner);
+                        if (_slowRetryCount < _MAX_AUTO_RETRIES) {
+                            // Auto-reload silently for the first 3 attempts
+                            console.log(`[Perf] Slow processing detected (avg ${(avgFrame / 1000).toFixed(1)}s/frame). Auto-reloading (attempt ${_slowRetryCount + 1}/${_MAX_AUTO_RETRIES})...`);
+                            reloadAndRetry();
+                            return; // exit processVideo — reloadAndRetry will restart it
+                        } else {
+                            // 4th time still slow — show manual button
+                            const totalFrames = Math.ceil(duration / interval);
+                            const estMinutes = ((totalFrames * avgFrame) / 60000).toFixed(0);
+                            const banner = document.createElement('div');
+                            banner.id = 'slowBanner';
+                            banner.className = 'slow-processing-banner';
+                            banner.innerHTML = `
+                                <p><strong>Slow processing detected</strong><br>
+                                Avg ${(avgFrame / 1000).toFixed(1)}s per frame — at this rate it would take ~${estMinutes} min.<br>
+                                Auto-reload didn't help after ${_MAX_AUTO_RETRIES} attempts. You can try once more or wait it out.</p>
+                                <button onclick="reloadAndRetry()">Reload Video & Retry</button>
+                            `;
+                            document.getElementById('progressContainer').appendChild(banner);
+                        }
+                    } else if (_slowRetryCount > 0) {
+                        // Was slow before but now it's fast — the reload worked!
+                        console.log(`[Perf] Processing speed OK after ${_slowRetryCount} reload(s) (avg ${avgFrame.toFixed(0)}ms/frame).`);
                     }
                 }
 
