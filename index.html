@@ -2862,7 +2862,9 @@
             progressEl.style.width = '10%';
 
             try {
-                await ffmpegInstance.writeFile(inputName, new Uint8Array(data));
+                // slice() to copy — writeFile transfers the buffer to the worker,
+                // which would detach the cached videoDataForFFmpeg ArrayBuffer.
+                await ffmpegInstance.writeFile(inputName, new Uint8Array(data.slice(0)));
                 progressEl.style.width = '30%';
                 textEl.textContent = 'Trimming clip...';
 
@@ -2927,34 +2929,102 @@
             const loaded = await loadFFmpeg();
             if (!loaded) return;
 
-            for (let i = 0; i < enabled.length; i++) {
-                const h = enabled[i];
-                const globalIdx = highlights.indexOf(h);
+            const data = await getVideoData();
+            if (!data) return;
 
-                const overlay = document.getElementById('ffmpegLoading');
-                const titleEl = document.getElementById('ffmpegLoadingTitle');
-                titleEl.textContent = `Exporting Clip ${i + 1} of ${enabled.length}...`;
+            const ext = guessVideoExtension();
+            const inputName = `input.${ext}`;
 
-                const blob = await extractClip(h);
-                if (!blob) continue;
+            const overlay = document.getElementById('ffmpegLoading');
+            const titleEl = document.getElementById('ffmpegLoadingTitle');
+            const textEl = document.getElementById('ffmpegLoadingText');
+            const progressEl = document.getElementById('ffmpegProgressFill');
+            overlay.classList.add('active');
+            titleEl.textContent = 'Exporting Highlights...';
+            textEl.textContent = 'Writing video data...';
+            progressEl.style.width = '5%';
 
-                const ext = guessVideoExtension();
-                const filename = `highlight-${globalIdx + 1}-${formatTime(h.timestamp).replace(':', 'm').replace('.', 's')}.${ext}`;
+            try {
+                // Write source video once
+                await ffmpegInstance.writeFile(inputName, new Uint8Array(data.slice(0)));
+                progressEl.style.width = '15%';
 
+                // Sort highlights by timestamp so the stitched video is in order
+                const sorted = [...enabled].sort((a, b) => a.timestamp - b.timestamp);
+
+                // Extract each clip as a separate segment
+                const segmentNames = [];
+                for (let i = 0; i < sorted.length; i++) {
+                    const h = sorted[i];
+                    const segName = `seg${i}.${ext}`;
+                    const startTime = Math.max(0, h.timestamp - 3);
+                    const duration = 4;
+
+                    textEl.textContent = `Trimming clip ${i + 1} of ${sorted.length}...`;
+                    await ffmpegInstance.exec([
+                        '-ss', startTime.toFixed(2),
+                        '-i', inputName,
+                        '-t', duration.toFixed(2),
+                        '-c', 'copy',
+                        '-avoid_negative_ts', 'make_zero',
+                        segName
+                    ]);
+                    segmentNames.push(segName);
+                    progressEl.style.width = (15 + 50 * (i + 1) / sorted.length) + '%';
+                }
+
+                let outputName;
+                if (segmentNames.length === 1) {
+                    // Single clip — just use it directly
+                    outputName = segmentNames[0];
+                } else {
+                    // Concatenate segments via concat demuxer
+                    textEl.textContent = 'Stitching clips together...';
+                    const concatList = segmentNames.map(s => `file '${s}'`).join('\n');
+                    await ffmpegInstance.writeFile('concat.txt', new TextEncoder().encode(concatList));
+
+                    outputName = `output.${ext}`;
+                    await ffmpegInstance.exec([
+                        '-f', 'concat',
+                        '-safe', '0',
+                        '-i', 'concat.txt',
+                        '-c', 'copy',
+                        outputName
+                    ]);
+                    await ffmpegInstance.deleteFile('concat.txt').catch(() => {});
+                }
+                progressEl.style.width = '85%';
+
+                textEl.textContent = 'Reading output...';
+                const outputData = await ffmpegInstance.readFile(outputName);
+                progressEl.style.width = '95%';
+
+                // Cleanup all temp files
+                await ffmpegInstance.deleteFile(inputName).catch(() => {});
+                for (const seg of segmentNames) {
+                    await ffmpegInstance.deleteFile(seg).catch(() => {});
+                }
+                if (outputName !== segmentNames[0]) {
+                    await ffmpegInstance.deleteFile(outputName).catch(() => {});
+                }
+
+                overlay.classList.remove('active');
+
+                const mimeType = ext === 'webm' ? 'video/webm' : 'video/mp4';
+                const blob = new Blob([outputData.buffer], { type: mimeType });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = filename;
+                a.download = `highlights.${ext}`;
                 a.click();
                 URL.revokeObjectURL(url);
 
-                // Small delay between downloads
-                if (i < enabled.length - 1) {
-                    await new Promise(r => setTimeout(r, 500));
-                }
+                showStatus(`${enabled.length} clip(s) stitched and exported!`, 'complete');
+            } catch (err) {
+                console.error('Export error:', err);
+                overlay.classList.remove('active');
+                showStatus('Failed to export clips: ' + (err.message || err), 'error');
             }
-
-            showStatus(`${enabled.length} clip(s) exported!`, 'complete');
         }
 
         // ─── Native Share Sheet ───
