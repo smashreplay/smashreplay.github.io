@@ -2256,25 +2256,28 @@
                 if (framesProcessed === 2 && !document.getElementById('slowBanner')) {
                     const avgFrame = perfStats.frameTimes.reduce((a, b) => a + b, 0) / perfStats.frameTimes.length;
                     if (avgFrame > 1500) {
+                        // Always show the banner so the user can manually retry
+                        const totalFrames = Math.ceil(duration / interval);
+                        const estMinutes = ((totalFrames * avgFrame) / 60000).toFixed(0);
+                        const banner = document.createElement('div');
+                        banner.id = 'slowBanner';
+                        banner.className = 'slow-processing-banner';
+                        const attempt = _slowRetryCount + 1;
+                        banner.innerHTML = `
+                            <p><strong>Slow processing detected</strong><br>
+                            Avg ${(avgFrame / 1000).toFixed(1)}s per frame — at this rate it would take ~${estMinutes} min.<br>
+                            ${_slowRetryCount >= _MAX_AUTO_RETRIES
+                                ? `Auto-reload didn't help after ${_MAX_AUTO_RETRIES} attempts. You can try again or wait it out.`
+                                : `Reloading video to speed things up (attempt ${attempt})...`}</p>
+                            <button onclick="reloadAndRetry()">Reload Video & Retry</button>
+                        `;
+                        document.getElementById('progressContainer').appendChild(banner);
+
+                        // Auto-reload for the first 3 attempts
                         if (_slowRetryCount < _MAX_AUTO_RETRIES) {
-                            // Auto-reload silently for the first 3 attempts
-                            console.log(`[Perf] Slow processing detected (avg ${(avgFrame / 1000).toFixed(1)}s/frame). Auto-reloading (attempt ${_slowRetryCount + 1}/${_MAX_AUTO_RETRIES})...`);
+                            console.log(`[Perf] Slow processing detected (avg ${(avgFrame / 1000).toFixed(1)}s/frame). Auto-reloading (attempt ${attempt}/${_MAX_AUTO_RETRIES})...`);
                             reloadAndRetry();
                             return; // exit processVideo — reloadAndRetry will restart it
-                        } else {
-                            // 4th time still slow — show manual button
-                            const totalFrames = Math.ceil(duration / interval);
-                            const estMinutes = ((totalFrames * avgFrame) / 60000).toFixed(0);
-                            const banner = document.createElement('div');
-                            banner.id = 'slowBanner';
-                            banner.className = 'slow-processing-banner';
-                            banner.innerHTML = `
-                                <p><strong>Slow processing detected</strong><br>
-                                Avg ${(avgFrame / 1000).toFixed(1)}s per frame — at this rate it would take ~${estMinutes} min.<br>
-                                Auto-reload didn't help after ${_MAX_AUTO_RETRIES} attempts. You can try once more or wait it out.</p>
-                                <button onclick="reloadAndRetry()">Reload Video & Retry</button>
-                            `;
-                            document.getElementById('progressContainer').appendChild(banner);
                         }
                     } else if (_slowRetryCount > 0) {
                         // Was slow before but now it's fast — the reload worked!
