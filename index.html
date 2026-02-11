@@ -2532,7 +2532,11 @@
                 textEl.textContent = 'Initializing FFmpeg core...';
 
                 const { FFmpeg } = FFmpegWASM;
-                const { toBlobURL } = FFmpegUtil;
+                async function toBlobURL(url, mimeType) {
+                    const res = await fetch(url);
+                    const buf = await res.arrayBuffer();
+                    return URL.createObjectURL(new Blob([buf], { type: mimeType }));
+                    }
 
                 ffmpegInstance = new FFmpeg();
 
