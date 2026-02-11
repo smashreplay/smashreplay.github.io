@@ -2551,7 +2551,14 @@
                 // Convert all resources to same-origin blob URLs.
                 // This is critical: Workers cannot be created from cross-origin URLs,
                 // and the ffmpeg class internally spawns a Worker from 814.ffmpeg.js.
-                const [coreURL, wasmURL, classWorkerURL] = await Promise.all([
+                //
+                // NOTE: We must NOT pass classWorkerURL to ffmpegInstance.load() because
+                // the UMD build forces {type:"module"} when classWorkerURL is set, but the
+                // UMD worker (814.ffmpeg.js) uses importScripts() which is only available
+                // in classic workers. Instead, we temporarily patch the Worker constructor
+                // to intercept the cross-origin worker URL and swap in our blob URL while
+                // keeping the worker type as classic.
+                const [coreURL, wasmURL, workerBlobURL] = await Promise.all([
                     toBlobURL(`${coreBase}/ffmpeg-core.js`, 'text/javascript'),
                     toBlobURL(`${coreBase}/ffmpeg-core.wasm`, 'application/wasm'),
                     toBlobURL(`${ffmpegBase}/814.ffmpeg.js`, 'text/javascript'),
@@ -2559,7 +2566,24 @@
                 progressEl.style.width = '80%';
 
                 textEl.textContent = 'Initializing FFmpeg...';
-                await ffmpegInstance.load({ coreURL, wasmURL, classWorkerURL });
+
+                // Patch Worker to redirect the cross-origin 814.ffmpeg.js to our blob URL
+                const OriginalWorker = window.Worker;
+                window.Worker = class extends OriginalWorker {
+                    constructor(scriptURL, options) {
+                        const url = scriptURL instanceof URL ? scriptURL.href : String(scriptURL);
+                        if (url.includes('ffmpeg')) {
+                            super(workerBlobURL, options);
+                        } else {
+                            super(scriptURL, options);
+                        }
+                    }
+                };
+                try {
+                    await ffmpegInstance.load({ coreURL, wasmURL });
+                } finally {
+                    window.Worker = OriginalWorker;
+                }
                 progressEl.style.width = '100%';
 
                 ffmpegLoaded = true;
@@ -2570,7 +2594,7 @@
                 console.error('FFmpeg load error:', err);
                 ffmpegLoading = false;
                 overlay.classList.remove('active');
-                showStatus('Failed to load FFmpeg: ' + err.message, 'error');
+                showStatus('Failed to load FFmpeg: ' + (err.message || err), 'error');
                 return false;
             }
         }
