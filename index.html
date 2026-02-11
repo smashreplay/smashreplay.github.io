@@ -2149,64 +2149,13 @@
         }
 
         function captureThumbnail(video, canvas, ctx, detectionData) {
-            // Draw full frame first
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            // If there are regions, crop to show the region where detection happened
-            if (basketRegions.length > 0) {
-                const region = detectionData.regionIndex !== undefined 
-                    ? basketRegions[detectionData.regionIndex] 
-                    : basketRegions[0];
-                
-                const sx = Math.floor(region.x * canvas.width);
-                const sy = Math.floor(region.y * canvas.height);
-                const sw = Math.floor(region.width * canvas.width);
-                const sh = Math.floor(region.height * canvas.height);
-                
-                // Create a thumbnail canvas
-                const thumbCanvas = document.createElement('canvas');
-                thumbCanvas.width = 320;
-                thumbCanvas.height = 240;
-                const thumbCtx = thumbCanvas.getContext('2d');
-                
-                // Draw the cropped region scaled to thumbnail size
-                thumbCtx.drawImage(
-                    video,
-                    sx, sy, sw, sh,  // Source
-                    0, 0, 320, 240   // Destination
-                );
-                
-                // Add debug overlay showing detection scores
-                thumbCtx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-                thumbCtx.fillRect(0, 200, 320, 40);
-                
-                thumbCtx.fillStyle = 'white';
-                thumbCtx.font = 'bold 13px monospace';
-                thumbCtx.fillText(`Motion: ${detectionData.motion.toFixed(1)}`, 8, 218);
-                thumbCtx.fillText(`Rim: ${detectionData.rim.toFixed(1)}`, 8, 233);
-                thumbCtx.fillText(`Ball: ${detectionData.ball.toFixed(1)}`, 168, 218);
-                thumbCtx.fillText(`Score: ${detectionData.score.toFixed(0)}`, 168, 233);
-                
-                return thumbCanvas.toDataURL('image/jpeg', 0.8);
-            }
-            
-            // Return full frame thumbnail if no regions
+            // Capture full video frame as thumbnail
             const thumbCanvas = document.createElement('canvas');
             thumbCanvas.width = 320;
-            thumbCanvas.height = 240;
+            thumbCanvas.height = 180;
             const thumbCtx = thumbCanvas.getContext('2d');
-            thumbCtx.drawImage(canvas, 0, 0, 320, 240);
-            
-            // Add debug info
-            thumbCtx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-            thumbCtx.fillRect(0, 200, 320, 40);
-            thumbCtx.fillStyle = 'white';
-            thumbCtx.font = 'bold 13px monospace';
-            thumbCtx.fillText(`Motion: ${detectionData.motion.toFixed(1)}`, 8, 218);
-            thumbCtx.fillText(`Rim: ${detectionData.rim.toFixed(1)}`, 8, 233);
-            thumbCtx.fillText(`Ball: ${detectionData.ball.toFixed(1)}`, 168, 218);
-            thumbCtx.fillText(`Score: ${detectionData.score.toFixed(0)}`, 168, 233);
-            
+            thumbCtx.drawImage(video, 0, 0, 320, 180);
+
             return thumbCanvas.toDataURL('image/jpeg', 0.8);
         }
 
