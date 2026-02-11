@@ -2504,6 +2504,14 @@
 
         // ─── FFmpeg WASM Integration ───
 
+        // Custom toBlobURL — replaces @ffmpeg/util (whose 0.12.2 UMD build is broken)
+        async function toBlobURL(url, mimeType) {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Fetch failed: ${url} (${response.status})`);
+            const buf = await response.arrayBuffer();
+            return URL.createObjectURL(new Blob([buf], { type: mimeType }));
+        }
+
         async function loadFFmpeg() {
             if (ffmpegLoaded) return true;
             if (ffmpegLoading) return false;
@@ -2520,24 +2528,15 @@
             progressEl.style.width = '10%';
 
             try {
-                // Dynamically load FFmpeg scripts from CDN
-                await loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js')
-                    .catch(() => loadScript('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js'));
-                progressEl.style.width = '20%';
+                // Load only @ffmpeg/ffmpeg UMD script (global: FFmpegWASM)
+                // Note: @ffmpeg/util@0.12.2 UMD is broken (gh #848), so we use our own toBlobURL
+                await loadScript('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js')
+                    .catch(() => loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js'));
+                progressEl.style.width = '15%';
 
-                await loadScript('https://unpkg.com/@ffmpeg/util@0.12.2/dist/umd/util.js')
-                    .catch(() => loadScript('https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/umd/util.js'));
-                progressEl.style.width = '30%';
-
-                textEl.textContent = 'Initializing FFmpeg core...';
+                textEl.textContent = 'Downloading FFmpeg core...';
 
                 const { FFmpeg } = FFmpegWASM;
-                async function toBlobURL(url, mimeType) {
-                    const res = await fetch(url);
-                    const buf = await res.arrayBuffer();
-                    return URL.createObjectURL(new Blob([buf], { type: mimeType }));
-                    }
-
                 ffmpegInstance = new FFmpeg();
 
                 ffmpegInstance.on('progress', ({ progress }) => {
@@ -2546,19 +2545,21 @@
                     textEl.textContent = `Processing: ${pct}%`;
                 });
 
-                const coreURL = await toBlobURL(
-                    'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js',
-                    'text/javascript'
-                );
-                progressEl.style.width = '50%';
+                const coreBase = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
+                const ffmpegBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd';
 
-                const wasmURL = await toBlobURL(
-                    'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm',
-                    'application/wasm'
-                );
+                // Convert all resources to same-origin blob URLs.
+                // This is critical: Workers cannot be created from cross-origin URLs,
+                // and the ffmpeg class internally spawns a Worker from 814.ffmpeg.js.
+                const [coreURL, wasmURL, classWorkerURL] = await Promise.all([
+                    toBlobURL(`${coreBase}/ffmpeg-core.js`, 'text/javascript'),
+                    toBlobURL(`${coreBase}/ffmpeg-core.wasm`, 'application/wasm'),
+                    toBlobURL(`${ffmpegBase}/814.ffmpeg.js`, 'text/javascript'),
+                ]);
                 progressEl.style.width = '80%';
 
-                await ffmpegInstance.load({ coreURL, wasmURL });
+                textEl.textContent = 'Initializing FFmpeg...';
+                await ffmpegInstance.load({ coreURL, wasmURL, classWorkerURL });
                 progressEl.style.width = '100%';
 
                 ffmpegLoaded = true;
@@ -2569,7 +2570,7 @@
                 console.error('FFmpeg load error:', err);
                 ffmpegLoading = false;
                 overlay.classList.remove('active');
-                showStatus('Failed to load FFmpeg. Check your network connection and try again.', 'error');
+                showStatus('Failed to load FFmpeg: ' + err.message, 'error');
                 return false;
             }
         }
@@ -2618,7 +2619,6 @@
         }
 
         async function extractClip(highlight) {
-            const { fetchFile } = FFmpegUtil;
             const data = await getVideoData();
             if (!data) return null;
 
