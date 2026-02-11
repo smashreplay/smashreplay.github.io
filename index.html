@@ -1235,7 +1235,8 @@
         let ffmpegInstance = null;
         let ffmpegLoaded = false;
         let ffmpegLoading = false;
-        let videoDataForFFmpeg = null; // ArrayBuffer of original video
+        // videoDataForFFmpeg removed — reading fresh from File each time
+        // avoids keeping the entire video permanently in JS heap memory
 
         // Performance diagnostics state
         let perfStats = null;
@@ -1444,7 +1445,7 @@
                 document.getElementById('videoSection').style.display = 'grid';
                 highlights = [];
                 basketRegions = [];
-                videoDataForFFmpeg = null; // Clear cached video data for new video
+                // (video data is read fresh each export — no cache to clear)
                 _slowRetryCount = 0;       // Reset slow-processing retry counter
                 updateHighlightsDisplay();
                 updateRegionDisplay();
@@ -2950,18 +2951,18 @@
         }
 
         async function getVideoData() {
-            if (videoDataForFFmpeg) return videoDataForFFmpeg;
-
+            // Return a fresh ArrayBuffer each time — avoids keeping the entire
+            // video permanently in JS heap memory, which caused browser crashes
+            // on large files.  File.arrayBuffer() re-reads from the OS file
+            // reference so the cost is minimal.
             if (currentTab === 'file' && videoFile) {
-                videoDataForFFmpeg = await videoFile.arrayBuffer();
-                return videoDataForFFmpeg;
+                return await videoFile.arrayBuffer();
             } else {
                 // For URL-based videos, try to fetch
                 const video = document.getElementById('videoPlayer');
                 try {
                     const response = await fetch(video.src);
-                    videoDataForFFmpeg = await response.arrayBuffer();
-                    return videoDataForFFmpeg;
+                    return await response.arrayBuffer();
                 } catch (err) {
                     showStatus('Cannot access video data for clipping. Try uploading the video as a local file.', 'error');
                     return null;
@@ -2998,9 +2999,9 @@
             progressEl.style.width = '10%';
 
             try {
-                // slice() to copy — writeFile transfers the buffer to the worker,
-                // which would detach the cached videoDataForFFmpeg ArrayBuffer.
-                await ffmpegInstance.writeFile(inputName, new Uint8Array(data.slice(0)));
+                // No .slice(0) needed — getVideoData() returns a fresh buffer
+                // each time, so transfer/detach is fine.
+                await ffmpegInstance.writeFile(inputName, new Uint8Array(data));
                 progressEl.style.width = '30%';
                 textEl.textContent = 'Trimming clip...';
 
@@ -3014,11 +3015,14 @@
                 ]);
                 progressEl.style.width = '90%';
 
+                // Delete the (large) input file before reading output to
+                // reduce peak memory — only the small clip remains in MEMFS.
+                await ffmpegInstance.deleteFile(inputName).catch(() => {});
+
                 const outputData = await ffmpegInstance.readFile(outputName);
                 progressEl.style.width = '100%';
 
-                // Cleanup
-                await ffmpegInstance.deleteFile(inputName).catch(() => {});
+                // Cleanup output
                 await ffmpegInstance.deleteFile(outputName).catch(() => {});
 
                 overlay.classList.remove('active');
@@ -3081,8 +3085,8 @@
             progressEl.style.width = '5%';
 
             try {
-                // Write source video once
-                await ffmpegInstance.writeFile(inputName, new Uint8Array(data.slice(0)));
+                // Write source video once (fresh buffer, no .slice(0) needed)
+                await ffmpegInstance.writeFile(inputName, new Uint8Array(data));
                 progressEl.style.width = '15%';
 
                 // Sort highlights by timestamp so the stitched video is in order
@@ -3109,6 +3113,10 @@
                     progressEl.style.width = (15 + 50 * (i + 1) / sorted.length) + '%';
                 }
 
+                // Free the full source video from MEMFS now that all segments
+                // are extracted — this is the biggest memory win for large files.
+                await ffmpegInstance.deleteFile(inputName).catch(() => {});
+
                 let outputName;
                 if (segmentNames.length === 1) {
                     // Single clip — just use it directly
@@ -3128,6 +3136,12 @@
                         outputName
                     ]);
                     await ffmpegInstance.deleteFile('concat.txt').catch(() => {});
+
+                    // Free segment files now that they've been concatenated —
+                    // only the final output remains in MEMFS.
+                    for (const seg of segmentNames) {
+                        await ffmpegInstance.deleteFile(seg).catch(() => {});
+                    }
                 }
                 progressEl.style.width = '85%';
 
@@ -3135,14 +3149,8 @@
                 const outputData = await ffmpegInstance.readFile(outputName);
                 progressEl.style.width = '95%';
 
-                // Cleanup all temp files
-                await ffmpegInstance.deleteFile(inputName).catch(() => {});
-                for (const seg of segmentNames) {
-                    await ffmpegInstance.deleteFile(seg).catch(() => {});
-                }
-                if (outputName !== segmentNames[0]) {
-                    await ffmpegInstance.deleteFile(outputName).catch(() => {});
-                }
+                // Cleanup final output file
+                await ffmpegInstance.deleteFile(outputName).catch(() => {});
 
                 overlay.classList.remove('active');
 
@@ -3159,7 +3167,11 @@
             } catch (err) {
                 console.error('Export error:', err);
                 overlay.classList.remove('active');
-                showStatus('Failed to export clips: ' + (err.message || err), 'error');
+                // Cleanup MEMFS on error to avoid lingering memory
+                const filesToClean = [inputName, `output.${ext}`, 'concat.txt'];
+                for (let i = 0; i < enabled.length; i++) filesToClean.push(`seg${i}.${ext}`);
+                for (const f of filesToClean) await ffmpegInstance.deleteFile(f).catch(() => {});
+                showStatus('Failed to export clips. The video may be too large for your browser — try fewer clips or a shorter video.', 'error');
             }
         }
 
