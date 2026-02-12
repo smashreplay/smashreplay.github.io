@@ -22,8 +22,28 @@
 ```
 /
 ├── index.html                   # Basketball highlights detector (mobile)
-└── CLAUDE.md                    # This file
+├── CLAUDE.md                    # This file
+├── css/                         # Extracted stylesheets
+└── js/                          # Application logic (16 modules, all global scope)
+    ├── state.js                 # Global state variables (loaded first)
+    ├── utils.js                 # showStatus, formatTime, enablePlaybackControls
+    ├── perf.js                  # Performance diagnostics & video warmup
+    ├── motion-detection.js      # Frame differencing, EMA, basket scoring
+    ├── chart.js                 # Motion chart rendering
+    ├── timeline.js              # Timeline overlay PNG generation
+    ├── highlights-display.js    # Thumbnail capture, highlight list UI
+    ├── ffmpeg.js                # FFmpeg WASM loading, clip extraction
+    ├── recovery.js              # Slow processing detection & retry
+    ├── region-selection.js      # Canvas overlay, drag/resize handlers
+    ├── region-management.js     # Region CRUD, guided workflow UI
+    ├── playback.js              # Play/stop/navigate highlights, keyboard nav
+    ├── export.js                # Single & multi-clip export with stitching
+    ├── sharing.js               # Native share sheet integration
+    ├── file-management.js       # Tab switching, file upload, video loading
+    └── processing.js            # Main video processing loop
 ```
+
+**JS load order matters:** `state.js` → `utils.js` → independent modules → dependent modules → `file-management.js` → `processing.js`. All functions are global scope with no imports/exports.
 
 ## Tech Stack
 
@@ -34,9 +54,8 @@
 ## Key Conventions
 
 ### HTML Pages
-- `index.html` and `basketball-highlights.html` are self-contained single-file apps (~2000 lines each) with inline `<style>` and `<script>` tags.
-- `index.html` is the mobile-optimized version; `basketball-highlights.html` is the desktop version.
-- When editing these files, be precise with changes — avoid rewriting entire files.
+- `index.html` is the mobile-optimized basketball highlights detector. JS logic lives in `js/` (16 files). CSS is being extracted to `css/`.
+- When editing HTML files, be precise with changes — avoid rewriting entire files.
 
 ## Development Workflow
 
@@ -47,5 +66,5 @@
 ## Important Notes for AI Assistants
 
 - There is **no package.json**, no npm scripts, no test suite, and no linter config. Do not suggest running `npm install` or similar.
-- Both HTML files are large self-contained apps. Use targeted edits, not full file rewrites.
-- There is no `assets/` directory — all styles and scripts are inlined in the HTML files.
+- Use targeted edits on HTML files, not full file rewrites.
+- JS logic is split across 16 files in `js/` — all global scope, no build step.
