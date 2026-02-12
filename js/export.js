@@ -135,28 +135,60 @@ async function exportClip() {
         }
         progressEl.style.width = '80%';
 
-        // ── Phase 3: Overlay timeline bar onto the video ──
+        // ── Phase 3: Overlay timeline bar + clip counters onto the video ──
         if (sorted.length > 1) {
+            const counterFiles = [];
             try {
-                textEl.textContent = 'Adding timeline overlay...';
+                textEl.textContent = 'Adding overlays...';
                 const video = document.getElementById('videoPlayer');
                 const vw = video.videoWidth || 1280;
                 const vh = video.videoHeight || 720;
 
-                const clipDurations = sorted.map(() => 4);
+                const clipDuration = 4;
+                const clipDurations = sorted.map(() => clipDuration);
                 const timelinePNG = generateTimelinePNG(sorted.length, clipDurations, vw, vh);
                 await ffmpegInstance.writeFile('timeline.png', timelinePNG);
+
+                // Generate counter PNGs for each clip
+                for (let i = 0; i < sorted.length; i++) {
+                    const counterPNG = generateCounterPNG(i + 1, sorted.length, vw, vh);
+                    const name = `counter_${i}.png`;
+                    await ffmpegInstance.writeFile(name, counterPNG);
+                    counterFiles.push(name);
+                }
 
                 const tmpInput = `tmp_in.${ext}`;
                 const tmpInputData = new Uint8Array(await outputBlob.arrayBuffer());
                 await ffmpegInstance.writeFile(tmpInput, tmpInputData);
 
+                // Build input args: video (0), timeline (1), counter_0 (2), counter_1 (3), ...
+                const inputArgs = ['-i', tmpInput, '-i', 'timeline.png'];
+                for (const cf of counterFiles) {
+                    inputArgs.push('-i', cf);
+                }
+
+                // Build filter_complex chain
+                const margin = Math.round(vw * 0.02);
+                let filter = '[1:v]format=rgba[tl];[0:v][tl]overlay=0:main_h-overlay_h[base]';
+
+                for (let i = 0; i < sorted.length; i++) {
+                    const inputIdx = i + 2; // counter inputs start at index 2
+                    const tStart = (i * clipDuration).toFixed(2);
+                    const tEnd = ((i + 1) * clipDuration).toFixed(2);
+                    const prevLabel = i === 0 ? 'base' : `s${i - 1}`;
+                    const isLast = i === sorted.length - 1;
+
+                    if (isLast) {
+                        filter += `;[${inputIdx}:v]format=rgba[c${i}];[${prevLabel}][c${i}]overlay=${margin}:${margin}:enable='between(t,${tStart},${tEnd})'`;
+                    } else {
+                        filter += `;[${inputIdx}:v]format=rgba[c${i}];[${prevLabel}][c${i}]overlay=${margin}:${margin}:enable='between(t,${tStart},${tEnd})'[s${i}]`;
+                    }
+                }
+
                 const finalName = 'final.mp4';
                 await ffmpegInstance.exec([
-                    '-i', tmpInput,
-                    '-i', 'timeline.png',
-                    '-filter_complex',
-                    '[1:v]format=rgba[ovr];[0:v][ovr]overlay=0:main_h-overlay_h',
+                    ...inputArgs,
+                    '-filter_complex', filter,
                     '-c:v', 'libx264',
                     '-preset', 'ultrafast',
                     '-crf', '23',
@@ -169,12 +201,15 @@ async function exportClip() {
                 const finalData = await ffmpegInstance.readFile(finalName);
                 await ffmpegInstance.deleteFile(tmpInput).catch(() => {});
                 await ffmpegInstance.deleteFile('timeline.png').catch(() => {});
+                for (const cf of counterFiles) await ffmpegInstance.deleteFile(cf).catch(() => {});
                 await ffmpegInstance.deleteFile(finalName).catch(() => {});
 
                 outputBlob = new Blob([finalData.buffer], { type: 'video/mp4' });
             } catch (tlErr) {
-                console.warn('Timeline overlay failed, exporting without it:', tlErr);
-                // Continue with the original outputBlob (no timeline)
+                console.warn('Overlay failed, exporting without it:', tlErr);
+                // Clean up counter files on error
+                for (const cf of counterFiles) await ffmpegInstance.deleteFile(cf).catch(() => {});
+                // Continue with the original outputBlob (no overlays)
             }
         }
 
@@ -195,7 +230,9 @@ async function exportClip() {
         overlay.classList.remove('active');
         // Best-effort MEMFS cleanup on failure
         const filesToClean = [`input.${ext}`, `output.${ext}`, `seg.${ext}`, 'concat.txt', `tmp_in.${ext}`, 'timeline.png', 'final.mp4'];
-        for (let i = 0; i < enabled.length; i++) filesToClean.push(`seg${i}.${ext}`);
+        for (let i = 0; i < enabled.length; i++) {
+            filesToClean.push(`seg${i}.${ext}`, `counter_${i}.png`);
+        }
         for (const f of filesToClean) await ffmpegInstance.deleteFile(f).catch(() => {});
         showStatus('Failed to export clips. The video may be too large for your browser — try fewer clips or a shorter video.', 'error');
     }
