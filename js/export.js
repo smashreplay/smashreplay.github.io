@@ -145,9 +145,6 @@ async function exportClip() {
                 const vh = video.videoHeight || 720;
 
                 const clipDuration = 4;
-                const clipDurations = sorted.map(() => clipDuration);
-                const timelinePNG = generateTimelinePNG(sorted.length, clipDurations, vw, vh);
-                await ffmpegInstance.writeFile('timeline.png', timelinePNG);
 
                 // Generate counter PNGs for each clip
                 for (let i = 0; i < sorted.length; i++) {
@@ -161,27 +158,29 @@ async function exportClip() {
                 const tmpInputData = new Uint8Array(await outputBlob.arrayBuffer());
                 await ffmpegInstance.writeFile(tmpInput, tmpInputData);
 
-                // Build input args: video (0), timeline (1), counter_0 (2), counter_1 (3), ...
-                const inputArgs = ['-i', tmpInput, '-i', 'timeline.png'];
+                // Build input args: video (0), counter_0 (1), counter_1 (2), ...
+                const inputArgs = ['-i', tmpInput];
                 for (const cf of counterFiles) {
                     inputArgs.push('-i', cf);
                 }
 
-                // Build filter_complex chain
+                // Build filter_complex chain for counter overlays
                 const margin = Math.round(vw * 0.02);
-                let filter = '[1:v]format=rgba[tl];[0:v][tl]overlay=0:main_h-overlay_h[base]';
+                let filter = '';
 
                 for (let i = 0; i < sorted.length; i++) {
-                    const inputIdx = i + 2; // counter inputs start at index 2
+                    const inputIdx = i + 1; // counter inputs start at index 1
                     const tStart = (i * clipDuration).toFixed(2);
                     const tEnd = ((i + 1) * clipDuration).toFixed(2);
-                    const prevLabel = i === 0 ? 'base' : `s${i - 1}`;
+                    const prevLabel = i === 0 ? '0:v' : `s${i - 1}`;
                     const isLast = i === sorted.length - 1;
 
+                    if (i > 0) filter += ';';
+
                     if (isLast) {
-                        filter += `;[${inputIdx}:v]format=rgba[c${i}];[${prevLabel}][c${i}]overlay=${margin}:${margin}:enable='between(t,${tStart},${tEnd})'`;
+                        filter += `[${inputIdx}:v]format=rgba[c${i}];[${prevLabel}][c${i}]overlay=${margin}:${margin}:enable='between(t,${tStart},${tEnd})'`;
                     } else {
-                        filter += `;[${inputIdx}:v]format=rgba[c${i}];[${prevLabel}][c${i}]overlay=${margin}:${margin}:enable='between(t,${tStart},${tEnd})'[s${i}]`;
+                        filter += `[${inputIdx}:v]format=rgba[c${i}];[${prevLabel}][c${i}]overlay=${margin}:${margin}:enable='between(t,${tStart},${tEnd})'[s${i}]`;
                     }
                 }
 
@@ -200,7 +199,6 @@ async function exportClip() {
 
                 const finalData = await ffmpegInstance.readFile(finalName);
                 await ffmpegInstance.deleteFile(tmpInput).catch(() => {});
-                await ffmpegInstance.deleteFile('timeline.png').catch(() => {});
                 for (const cf of counterFiles) await ffmpegInstance.deleteFile(cf).catch(() => {});
                 await ffmpegInstance.deleteFile(finalName).catch(() => {});
 
