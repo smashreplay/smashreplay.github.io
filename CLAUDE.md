@@ -1,5 +1,18 @@
 # CLAUDE.md — Smash Replay Website
 
+# Project Standards: HTML Refactor
+
+## Modularity Rules (Strict)
+- **File Limit:** No single file should exceed 300 lines.
+- **Extraction:** If a <div> or <section> exceeds 50 lines, it must be extracted into a separate component/partial.
+- **CSS/JS:** No inline <style> or <script> tags. All logic and styling must live in `/css` and `/js` directories.
+
+## Refactor Workflow
+1. **Plan Mode:** Before editing, use `/plan` to outline which section is being extracted.
+2. **Small Batches:** Only refactor one component at a time.
+3. **Verification:** Check the UI after every file split to ensure no styles are broken.
+4. **Context Management:** After a successful extraction and verification, remind the user to run `/clear`.
+
 ## Project Overview
 
 **Smash Replay** is hosted via **GitHub Pages** at `smashreplay.github.io`. The site currently serves basketball highlights detector tools — self-contained single-page web apps that let users detect and clip highlight moments from basketball videos.
@@ -9,7 +22,6 @@
 ```
 /
 ├── index.html                   # Basketball highlights detector (mobile)
-├── basketball-highlights.html   # Basketball highlights detector (desktop)
 └── CLAUDE.md                    # This file
 ```
 
