@@ -3036,6 +3036,68 @@
             }
         }
 
+        // ─── Timeline Overlay for Exported Video ───
+
+        const TIMELINE_COLORS = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+            '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+            '#FF8C42', '#6BCB77', '#4D96FF', '#FF6F91', '#C9B1FF'
+        ];
+
+        function generateTimelinePNG(clipCount, clipDurations, videoWidth, videoHeight) {
+            const barHeight = Math.max(28, Math.round(videoHeight * 0.04));
+            const margin = Math.round(videoWidth * 0.03);
+            const barY = 8;
+            const canvasHeight = barHeight + barY * 2;
+            const barWidth = videoWidth - margin * 2;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = videoWidth;
+            canvas.height = canvasHeight;
+            const ctx = canvas.getContext('2d');
+
+            // Semi-transparent dark background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+            ctx.beginPath();
+            ctx.roundRect(margin - 6, 0, barWidth + 12, canvasHeight, 8);
+            ctx.fill();
+
+            const totalDuration = clipDurations.reduce((a, b) => a + b, 0);
+            const gap = Math.min(3, Math.round(barWidth * 0.004));
+            const totalGaps = gap * (clipCount - 1);
+            const usableWidth = barWidth - totalGaps;
+            let x = margin;
+
+            for (let i = 0; i < clipCount; i++) {
+                const w = (clipDurations[i] / totalDuration) * usableWidth;
+                const color = TIMELINE_COLORS[i % TIMELINE_COLORS.length];
+
+                // Colored segment
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.roundRect(x, barY, w, barHeight, 4);
+                ctx.fill();
+
+                // Clip number label
+                if (w > 20) {
+                    ctx.fillStyle = '#000';
+                    ctx.font = `bold ${Math.round(barHeight * 0.5)}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(`${i + 1}`, x + w / 2, barY + barHeight / 2);
+                }
+
+                x += w + gap;
+            }
+
+            // Convert canvas to PNG Uint8Array
+            const dataUrl = canvas.toDataURL('image/png');
+            const binary = atob(dataUrl.split(',')[1]);
+            const arr = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+            return arr;
+        }
+
         async function exportSingleClip(index) {
             const highlight = highlights[index];
 
@@ -3171,14 +3233,59 @@
 
                     outputBlob = new Blob([outputData.buffer], { type: mimeType });
                 }
-                progressEl.style.width = '95%';
+                progressEl.style.width = '80%';
 
+                // ── Phase 3: Overlay timeline bar onto the video ──
+                if (sorted.length > 1) {
+                    try {
+                        textEl.textContent = 'Adding timeline overlay...';
+                        const video = document.getElementById('videoPlayer');
+                        const vw = video.videoWidth || 1280;
+                        const vh = video.videoHeight || 720;
+
+                        const clipDurations = sorted.map(() => 4);
+                        const timelinePNG = generateTimelinePNG(sorted.length, clipDurations, vw, vh);
+                        await ffmpegInstance.writeFile('timeline.png', timelinePNG);
+
+                        const tmpInput = `tmp_in.${ext}`;
+                        const tmpInputData = new Uint8Array(await outputBlob.arrayBuffer());
+                        await ffmpegInstance.writeFile(tmpInput, tmpInputData);
+
+                        const finalName = 'final.mp4';
+                        await ffmpegInstance.exec([
+                            '-i', tmpInput,
+                            '-i', 'timeline.png',
+                            '-filter_complex',
+                            '[1:v]format=rgba[ovr];[0:v][ovr]overlay=0:main_h-overlay_h',
+                            '-c:v', 'libx264',
+                            '-preset', 'ultrafast',
+                            '-crf', '23',
+                            '-c:a', 'copy',
+                            '-movflags', '+faststart',
+                            '-y',
+                            finalName
+                        ]);
+
+                        const finalData = await ffmpegInstance.readFile(finalName);
+                        await ffmpegInstance.deleteFile(tmpInput).catch(() => {});
+                        await ffmpegInstance.deleteFile('timeline.png').catch(() => {});
+                        await ffmpegInstance.deleteFile(finalName).catch(() => {});
+
+                        outputBlob = new Blob([finalData.buffer], { type: 'video/mp4' });
+                    } catch (tlErr) {
+                        console.warn('Timeline overlay failed, exporting without it:', tlErr);
+                        // Continue with the original outputBlob (no timeline)
+                    }
+                }
+
+                progressEl.style.width = '95%';
                 overlay.classList.remove('active');
 
+                const dlExt = sorted.length > 1 ? 'mp4' : ext;
                 const url = URL.createObjectURL(outputBlob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `highlights.${ext}`;
+                a.download = `highlights.${dlExt}`;
                 a.click();
                 URL.revokeObjectURL(url);
 
@@ -3187,7 +3294,7 @@
                 console.error('Export error:', err);
                 overlay.classList.remove('active');
                 // Best-effort MEMFS cleanup on failure
-                const filesToClean = [`input.${ext}`, `output.${ext}`, `seg.${ext}`, 'concat.txt'];
+                const filesToClean = [`input.${ext}`, `output.${ext}`, `seg.${ext}`, 'concat.txt', `tmp_in.${ext}`, 'timeline.png', 'final.mp4'];
                 for (let i = 0; i < enabled.length; i++) filesToClean.push(`seg${i}.${ext}`);
                 for (const f of filesToClean) await ffmpegInstance.deleteFile(f).catch(() => {});
                 showStatus('Failed to export clips. The video may be too large for your browser — try fewer clips or a shorter video.', 'error');
