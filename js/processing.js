@@ -1,4 +1,9 @@
 async function processVideo() {
+    if (basketRegions.length === 0) {
+        showStatus('Please select at least one basket region before starting detection.', 'error');
+        return;
+    }
+
     const video = document.getElementById('processingVideo'); // Use hidden video
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');

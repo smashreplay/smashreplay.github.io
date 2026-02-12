@@ -79,13 +79,21 @@ function loadVideo() {
         // Set up keyboard navigation
         setupKeyboardNavigation();
 
-        // Force first frame to render (prevents black preview on mobile).
-        // A black preview means the decoder hasn't parsed the video data yet,
-        // which would cause extremely slow seeking during processing.
-        video.currentTime = 0.001;
-        processingVideo.currentTime = 0.001;
+        // Seek to the middle of the video so the user gets a useful frame
+        // for placing the basket region, then auto-open region selection.
+        const midTime = Math.min(video.duration / 2, video.duration - 0.1);
+        video.currentTime = midTime;
+        processingVideo.currentTime = 0.001; // processing video just needs decoder warm-up
 
-        showStatus('Video loaded successfully! Select basket regions to start.', 'complete');
+        video.addEventListener('seeked', function onMidSeek() {
+            video.removeEventListener('seeked', onMidSeek);
+            // Auto-start region selection so the overlay box appears immediately
+            if (basketRegions.length === 0 && !isSelectingRegion) {
+                toggleRegionSelection();
+            }
+        });
+
+        showStatus('Position the box over the basket, then tap Confirm.', 'complete');
     };
 
     video.onerror = () => {
