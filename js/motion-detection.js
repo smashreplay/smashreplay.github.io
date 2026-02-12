@@ -58,6 +58,11 @@ function updateRegionEMA(regionIdx, motion) {
         ema.initialized = true;
         return;
     }
+    const stdDev = Math.sqrt(Math.max(0, ema.variance));
+    // Skip EMA update if motion is more than 1 stddev above mean — keeps
+    // the baseline stable and prevents spikes from inflating the threshold.
+    if (stdDev > 0 && motion > ema.mean + stdDev) return;
+
     const diff = motion - ema.mean;
     ema.mean += EMA_ALPHA * diff;
     ema.variance = (1 - EMA_ALPHA) * (ema.variance + EMA_ALPHA * diff * diff);
