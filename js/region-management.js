@@ -73,7 +73,7 @@ function clearLastRegion() {
 function clearAllRegions() {
     basketRegions = [];
     updateRegionDisplay();
-    showStatus('All basket regions cleared. Will use full frame detection.', 'complete');
+    showStatus('All basket regions cleared. Select a basket region to start.', 'complete');
 }
 
 function updateRegionDisplay() {
@@ -112,8 +112,7 @@ function updateGuidedWorkflow() {
     const nextStepsPanel = document.getElementById('nextStepsPanel');
 
     if (basketRegions.length === 0) {
-        processBtn.style.display = 'block';
-        processBtn.innerHTML = '<span>▶ Start Detection (Full Frame)</span>';
+        processBtn.style.display = 'none';
         if (nextStepsPanel) nextStepsPanel.style.display = 'none';
     } else {
         processBtn.style.display = 'none'; // hide standalone button; next-steps panel takes over
