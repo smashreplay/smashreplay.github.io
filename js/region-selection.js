@@ -28,8 +28,8 @@ let overlayRegion = null;      // The region being edited {x, y, width, height} 
 let overlayDragType = null;    // 'move', 'tl', 'tr', 'bl', 'br' (corners)
 let overlayDragStart = null;   // {x, y} in normalized coords where drag started
 let overlayOriginal = null;    // Copy of region at drag start
-const HANDLE_SIZE = 22;        // px — touch-friendly handle radius
-const MIN_REGION_SIZE = 0.08;  // Minimum 8% of video in either dimension
+const HANDLE_SIZE = 5;        // px — touch-friendly handle radius
+const MIN_REGION_SIZE = 0.02;  // Minimum 8% of video in either dimension
 
 function getPointerPos(e) {
     const rect = selectionCanvas.getBoundingClientRect();
@@ -172,7 +172,7 @@ function drawOverlay() {
     selectionCtx.strokeRect(x, y, w, h);
 
     // Draw corner handles
-    const hs = 12; // visual handle half-size
+    const hs = 5; // visual handle half-size
     const corners = [
         [x, y], [x + w, y],
         [x, y + h], [x + w, y + h]
