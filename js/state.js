@@ -24,7 +24,7 @@ let chartDetections = [];  // timestamps where detections fired
 
 // EMA anomaly detection state — per region
 const EMA_ALPHA = 0.08;    // Smoothing factor — lower = slower adaptation
-const ANOMALY_K = 1;       // Std deviations above mean to trigger
+const ANOMALY_K = 2;       // Std deviations above mean to trigger
 const CEILING_K = 6;       // Motion above threshold * this = too big (person)
 const MIN_THRESHOLD = 2.5; // Floor so tiny noise doesn't trigger in dead-still scenes
 let regionEMAs = [];       // [{mean, variance, initialized}] per region

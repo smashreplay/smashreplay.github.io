@@ -28,7 +28,7 @@ let overlayRegion = null;      // The region being edited {x, y, width, height} 
 let overlayDragType = null;    // 'move', 'tl', 'tr', 'bl', 'br' (corners)
 let overlayDragStart = null;   // {x, y} in normalized coords where drag started
 let overlayOriginal = null;    // Copy of region at drag start
-const HANDLE_SIZE = 22;        // px — touch-friendly handle radius
+const HANDLE_SIZE = 17;        // px — touch-friendly handle radius
 const MIN_REGION_SIZE = 0.02;  // Minimum 8% of video in either dimension
 
 function getPointerPos(e) {
