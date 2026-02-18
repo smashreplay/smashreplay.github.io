@@ -31,7 +31,7 @@ function exportTimestamps() {
 function exportJSON() {
     const enabled = getEnabledHighlights();
     const data = {
-        videoSource: currentTab === 'file' ? 'local file' : document.getElementById('videoUrl').value,
+        videoSource: 'local file',
         processedDate: new Date().toISOString(),
         totalHighlights: enabled.length,
         highlights: enabled.map((h, i) => ({

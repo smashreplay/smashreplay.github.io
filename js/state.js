@@ -1,4 +1,3 @@
-let currentTab = 'file';
 let videoFile = null;
 let highlights = [];
 let settings = {

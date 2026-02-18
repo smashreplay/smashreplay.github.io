@@ -120,18 +120,11 @@ async function getVideoData() {
     // video permanently in JS heap memory, which caused browser crashes
     // on large files.  File.arrayBuffer() re-reads from the OS file
     // reference so the cost is minimal.
-    if (currentTab === 'file' && videoFile) {
+    if (videoFile) {
         return await videoFile.arrayBuffer();
     } else {
-        // For URL-based videos, try to fetch
-        const video = document.getElementById('videoPlayer');
-        try {
-            const response = await fetch(video.src);
-            return await response.arrayBuffer();
-        } catch (err) {
-            showStatus('Cannot access video data for clipping. Try uploading the video as a local file.', 'error');
-            return null;
-        }
+        showStatus('Error: No video file loaded.', 'error');
+        return null;
     }
 }
 
