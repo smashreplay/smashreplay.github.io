@@ -77,22 +77,13 @@ function clearAllRegions() {
 }
 
 function updateRegionDisplay() {
-    const indicator = document.getElementById('regionIndicator');
-    const regionList = document.getElementById('regionList');
     const selectBtn = document.getElementById('selectRegionBtn');
 
     if (basketRegions.length === 0) {
-        regionList.innerHTML = 'None selected';
-        indicator.classList.remove('set');
         document.getElementById('clearRegionBtn').style.display = 'none';
         selectBtn.disabled = false;
         selectBtn.textContent = '📍 Add Basket Region';
     } else {
-        const badges = basketRegions.map((r, i) =>
-            `<span class="region-badge" style="background: ${r.color}">Region ${r.number}</span>`
-        ).join(' ');
-        regionList.innerHTML = badges;
-        indicator.classList.add('set');
         document.getElementById('clearRegionBtn').style.display = 'inline-flex';
         selectBtn.disabled = basketRegions.length >= getMaxRegions();
         if (basketRegions.length >= getMaxRegions()) {
