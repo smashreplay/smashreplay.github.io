@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <meta name="theme-color" content="#667eea">
+    <title>Smash Replay — Watch Highlights</title>
+    <link rel="stylesheet" href="css/watch.css">
+</head>
+<body>
+    <div class="watch-container">
+        <header class="watch-header">
+            <a href="/" class="watch-back">&#8592; Basketball Highlights Detector</a>
+        </header>
+
+        <main class="watch-main">
+            <div id="watchLoading" class="watch-loading">
+                <div class="watch-spinner"></div>
+                <p>Loading replay&hellip;</p>
+            </div>
+
+            <div id="watchError" class="watch-error" style="display: none;">
+                <p id="watchErrorMsg"></p>
+                <a href="/" class="watch-back-link">Go back to the detector</a>
+            </div>
+
+            <div id="watchPlayer" class="watch-player" style="display: none;">
+                <video id="watchVideo" controls playsinline></video>
+                <p class="watch-caption">Basketball Highlights Reel &mdash; shared via Smash Replay</p>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/watch.js"></script>
+</body>
+</html>
