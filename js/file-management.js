@@ -45,18 +45,10 @@ function loadVideo() {
 
         // Show court type prompt before starting region selection
         showCourtTypePrompt(function () {
-            video.addEventListener('seeked', function onMidSeek() {
-                video.removeEventListener('seeked', onMidSeek);
-                // Auto-start region selection so the overlay box appears immediately
-                if (basketRegions.length === 0 && !isSelectingRegion) {
-                    toggleRegionSelection();
-                }
-            });
-            // If already seeked, trigger region selection directly
-            if (video.readyState >= 2) {
-                if (basketRegions.length === 0 && !isSelectingRegion) {
-                    toggleRegionSelection();
-                }
+            // By the time the user picks a court type, the mid-video seek
+            // has already completed, so start region selection directly.
+            if (basketRegions.length === 0 && !isSelectingRegion) {
+                toggleRegionSelection();
             }
             showStatus('Position the box over the basket, then tap Confirm.', 'complete');
         });
