@@ -40,3 +40,8 @@ let ffmpegLoading = false;
 
 // Performance diagnostics state
 let perfStats = null;
+
+// ─── Backend Configuration ───
+// Set to your upload endpoint to enable the Share feature.
+// Empty string ('') = "Coming soon" mode — no upload will be attempted.
+const UPLOAD_BACKEND_URL = '';

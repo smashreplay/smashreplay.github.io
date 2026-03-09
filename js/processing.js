@@ -262,4 +262,9 @@ async function processVideo() {
     } else {
         showStatus(`Processing complete! No clips detected.`, 'complete');
     }
+
+    // Prompt the user to download or share their reel (2s delay lets auto-play begin first)
+    if (highlights.length > 0) {
+        setTimeout(showPostDetectionModal, 2000);
+    }
 }

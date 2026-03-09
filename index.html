@@ -933,6 +933,7 @@
         }
     </style>
     <link rel="stylesheet" href="css/court-type.css">
+    <link rel="stylesheet" href="css/post-detection-modal.css">
 </head>
 <body>
     <div class="container">
@@ -1114,6 +1115,23 @@
             <!-- Status Messages -->
             <div id="statusMessage" style="display: none;"></div>
 
+            <!-- Post-Detection: Download or Share Prompt -->
+            <div class="post-detection-overlay" id="postDetectionOverlay">
+                <div class="post-detection-card">
+                    <button class="post-detection-close" onclick="closePostDetectionModal()" aria-label="Close">&#x2715;</button>
+                    <h3>Highlights ready!</h3>
+                    <p>Found <span id="postDetectionCount">0</span> clip(s). Save or share your reel.</p>
+                    <div class="post-detection-actions">
+                        <button class="post-detection-btn download" onclick="handlePostDetectionDownload()">
+                            ⬇ Download Highlight Reel
+                        </button>
+                        <button class="post-detection-btn share" id="postDetectionShareBtn" onclick="handlePostDetectionShare()">
+                            <span id="postDetectionShareLabel">🔗 Share via Link</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Court Type Selection Overlay -->
             <div class="court-type-overlay" id="courtTypeOverlay">
                 <div class="court-type-card">
@@ -1177,6 +1195,7 @@
     <script src="js/playback.js"></script>
     <script src="js/export.js"></script>
     <script src="js/sharing.js"></script>
+    <script src="js/post-detection-modal.js"></script>
 
     <!-- Modules that call across many others -->
     <script src="js/file-management.js"></script>
