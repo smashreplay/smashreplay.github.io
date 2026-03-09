@@ -1,5 +1,5 @@
 function toggleRegionSelection() {
-    if (basketRegions.length >= MAX_REGIONS && !isSelectingRegion) {
+    if (basketRegions.length >= getMaxRegions() && !isSelectingRegion) {
         return;
     }
 
@@ -94,8 +94,8 @@ function updateRegionDisplay() {
         regionList.innerHTML = badges;
         indicator.classList.add('set');
         document.getElementById('clearRegionBtn').style.display = 'inline-flex';
-        selectBtn.disabled = basketRegions.length >= MAX_REGIONS;
-        if (basketRegions.length >= MAX_REGIONS) {
+        selectBtn.disabled = basketRegions.length >= getMaxRegions();
+        if (basketRegions.length >= getMaxRegions()) {
             selectBtn.textContent = 'Max regions reached';
         } else {
             selectBtn.textContent = '📍 Add Basket Region';
@@ -129,7 +129,7 @@ function updateGuidedWorkflow() {
         const panel = document.getElementById('nextStepsPanel');
         panel.style.display = 'block';
 
-        if (basketRegions.length < MAX_REGIONS) {
+        if (basketRegions.length < getMaxRegions()) {
             panel.innerHTML = `
                 <div style="font-weight: 700; font-size: 15px; margin-bottom: 12px;">Basket ${basketRegions.length} selected!</div>
                 <div style="display: flex; gap: 10px;">
@@ -157,8 +157,8 @@ function updateGuidedWorkflow() {
 }
 
 function startRegionSelection() {
-    if (basketRegions.length >= MAX_REGIONS) {
-        showStatus(`Maximum ${MAX_REGIONS} basket regions allowed.`, 'complete');
+    if (basketRegions.length >= getMaxRegions()) {
+        showStatus(`Maximum ${getMaxRegions()} basket regions allowed.`, 'complete');
         return;
     }
     toggleRegionSelection();
