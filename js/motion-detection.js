@@ -1,4 +1,21 @@
-// Returns array of per-region motion values, or [fullFrameMotion] if no regions
+// Compute mean brightness (grayscale) over sampled pixels in a region or full frame.
+// Uses the same sampling stride as detectMotion for consistency.
+function computeMeanBrightness(data, width, height, startX, startY, endX, endY, step) {
+    let sum = 0;
+    let count = 0;
+    for (let y = startY; y < endY; y += step) {
+        for (let x = startX; x < endX; x += step) {
+            const idx = (y * width + x) * 4;
+            sum += (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+            count++;
+        }
+    }
+    return count > 0 ? sum / count : 0;
+}
+
+// Returns array of per-region motion values, or [fullFrameMotion] if no regions.
+// Brightness-normalized: subtracts per-frame mean luminance before differencing
+// so that global light changes (arena dimming/brightening) don't register as motion.
 function detectMotion(frame1, frame2) {
     const data1 = frame1.data;
     const data2 = frame2.data;
@@ -12,15 +29,20 @@ function detectMotion(frame1, frame2) {
             const endX = Math.floor((region.x + region.width) * width);
             const endY = Math.floor((region.y + region.height) * height);
 
+            const mean1 = computeMeanBrightness(data1, width, height, startX, startY, endX, endY, 2);
+            const mean2 = computeMeanBrightness(data2, width, height, startX, startY, endX, endY, 2);
+            const brightnessDelta = mean2 - mean1;
+
             let regionDiff = 0;
             let regionCount = 0;
 
             for (let y = startY; y < endY; y += 2) {
                 for (let x = startX; x < endX; x += 2) {
                     const idx = (y * width + x) * 4;
-                    const r = Math.abs(data1[idx] - data2[idx]);
-                    const g = Math.abs(data1[idx + 1] - data2[idx + 1]);
-                    const b = Math.abs(data1[idx + 2] - data2[idx + 2]);
+                    // Subtract global brightness shift from frame2 channels
+                    const r = Math.abs(data1[idx] - (data2[idx] - brightnessDelta));
+                    const g = Math.abs(data1[idx + 1] - (data2[idx + 1] - brightnessDelta));
+                    const b = Math.abs(data1[idx + 2] - (data2[idx + 2] - brightnessDelta));
                     regionDiff += (r + g + b) / 3;
                     regionCount++;
                 }
@@ -29,16 +51,25 @@ function detectMotion(frame1, frame2) {
             return regionCount > 0 ? regionDiff / regionCount : 0;
         });
     } else {
+        // Full-frame path: compute mean brightness over sampled pixels
+        let sum1 = 0, sum2 = 0, sampleCount = 0;
+        for (let i = 0; i < data1.length; i += 40) {
+            sum1 += (data1[i] + data1[i + 1] + data1[i + 2]) / 3;
+            sum2 += (data2[i] + data2[i + 1] + data2[i + 2]) / 3;
+            sampleCount++;
+        }
+        const brightnessDelta = sampleCount > 0 ? (sum2 / sampleCount) - (sum1 / sampleCount) : 0;
+
         let diff = 0;
         let count = 0;
         for (let i = 0; i < data1.length; i += 40) {
-            const r = Math.abs(data1[i] - data2[i]);
-            const g = Math.abs(data1[i + 1] - data2[i + 1]);
-            const b = Math.abs(data1[i + 2] - data2[i + 2]);
+            const r = Math.abs(data1[i] - (data2[i] - brightnessDelta));
+            const g = Math.abs(data1[i + 1] - (data2[i + 1] - brightnessDelta));
+            const b = Math.abs(data1[i + 2] - (data2[i + 2] - brightnessDelta));
             diff += (r + g + b) / 3;
             count++;
         }
-        return [diff / count];
+        return [count > 0 ? diff / count : 0];
     }
 }
 
