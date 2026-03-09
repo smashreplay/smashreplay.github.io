@@ -144,6 +144,49 @@ function handleOverlayPointerUp(e) {
     }
 }
 
+function drawBasketGuide(ctx, x, y, w, h, color) {
+    // Trapezoid representing basketball hoop (wide top) narrowing to net (narrow bottom)
+    const topInset = w * 0.1;
+    const bottomInset = w * 0.35;
+    const topY = y + h * 0.18;
+    const bottomY = y + h * 0.82;
+    const topLeft  = x + topInset;
+    const topRight = x + w - topInset;
+    const botLeft  = x + bottomInset;
+    const botRight = x + w - bottomInset;
+
+    // Semi-transparent fill
+    ctx.beginPath();
+    ctx.moveTo(topLeft, topY);
+    ctx.lineTo(topRight, topY);
+    ctx.lineTo(botRight, bottomY);
+    ctx.lineTo(botLeft,  bottomY);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.fill();
+
+    // Dashed outline for the full trapezoid
+    ctx.beginPath();
+    ctx.moveTo(topLeft, topY);
+    ctx.lineTo(topRight, topY);
+    ctx.lineTo(botRight, bottomY);
+    ctx.lineTo(botLeft,  bottomY);
+    ctx.closePath();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Solid accent line at the top edge (represents the rim)
+    ctx.beginPath();
+    ctx.moveTo(topLeft, topY);
+    ctx.lineTo(topRight, topY);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+}
+
 function drawOverlay() {
     if (!selectionCanvas) return;
     selectionCtx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
@@ -165,6 +208,9 @@ function drawOverlay() {
 
     // Clear the region area (make it bright/visible)
     selectionCtx.clearRect(x, y, w, h);
+
+    // Draw basketball net/hoop guide inside the box
+    drawBasketGuide(selectionCtx, x, y, w, h, color);
 
     // Draw border
     selectionCtx.strokeStyle = color;
