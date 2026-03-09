@@ -67,7 +67,7 @@ async function exportClip() {
             const h = sorted[i];
             const segName = `seg.${ext}`;
             const startTime = Math.max(0, h.timestamp - 3);
-            const duration = 4;
+            const duration = 5;
 
             textEl.textContent = `Reading video for clip ${i + 1}...`;
             let data = await getVideoData();

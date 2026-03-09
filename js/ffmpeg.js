@@ -145,7 +145,7 @@ async function extractClip(highlight) {
     const outputName = `clip.${ext}`;
 
     const startTime = Math.max(0, highlight.timestamp - 3);
-    const duration = 4; // 3 seconds before + 1 second after
+    const duration = 5; // 3 seconds before + 2 seconds after
 
     const overlay = document.getElementById('ffmpegLoading');
     const titleEl = document.getElementById('ffmpegLoadingTitle');
