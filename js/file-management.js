@@ -26,6 +26,7 @@ function loadVideo() {
         document.getElementById('videoSection').style.display = 'grid';
         highlights = [];
         basketRegions = [];
+        courtType = null;
         // (video data is read fresh each export — no cache to clear)
         _slowRetryCount = 0;       // Reset slow-processing retry counter
         updateHighlightsDisplay();
@@ -38,20 +39,27 @@ function loadVideo() {
         setupKeyboardNavigation();
 
         // Seek to the middle of the video so the user gets a useful frame
-        // for placing the basket region, then auto-open region selection.
         const midTime = Math.min(video.duration / 2, video.duration - 0.1);
         video.currentTime = midTime;
         processingVideo.currentTime = 0.001; // processing video just needs decoder warm-up
 
-        video.addEventListener('seeked', function onMidSeek() {
-            video.removeEventListener('seeked', onMidSeek);
-            // Auto-start region selection so the overlay box appears immediately
-            if (basketRegions.length === 0 && !isSelectingRegion) {
-                toggleRegionSelection();
+        // Show court type prompt before starting region selection
+        showCourtTypePrompt(function () {
+            video.addEventListener('seeked', function onMidSeek() {
+                video.removeEventListener('seeked', onMidSeek);
+                // Auto-start region selection so the overlay box appears immediately
+                if (basketRegions.length === 0 && !isSelectingRegion) {
+                    toggleRegionSelection();
+                }
+            });
+            // If already seeked, trigger region selection directly
+            if (video.readyState >= 2) {
+                if (basketRegions.length === 0 && !isSelectingRegion) {
+                    toggleRegionSelection();
+                }
             }
+            showStatus('Position the box over the basket, then tap Confirm.', 'complete');
         });
-
-        showStatus('Position the box over the basket, then tap Confirm.', 'complete');
     };
 
     video.onerror = () => {

@@ -4,12 +4,15 @@ let settings = {
     minGap: 3  // Minimum gap between clips in seconds
 };
 
+// Court type: 'half' (1 basket) or 'full' (2 baskets)
+let courtType = null;
+
 // Region selection variables - now supports multiple regions
 let basketRegions = [];
 let isSelectingRegion = false;
 let selectionCanvas = null;
 let selectionCtx = null;
-const MAX_REGIONS = 2;
+function getMaxRegions() { return courtType === 'full' ? 2 : 1; }
 
 // Playback mode variables
 let isPlayingAll = false;

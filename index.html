@@ -972,6 +972,7 @@
             color: #666;
         }
     </style>
+    <link rel="stylesheet" href="css/court-type.css">
 </head>
 <body>
     <div class="container">
@@ -1035,7 +1036,7 @@
                     </div>
                     <div class="region-controls">
                         <div class="region-indicator" id="regionIndicator">
-                            <strong>🎯 Basket Regions:</strong>
+                            <strong>🎯 Basket Regions:<span class="court-type-indicator" id="courtTypeTag" style="display:none;"></span></strong>
                             <div id="regionList">None selected</div>
                         </div>
                     </div>
@@ -1159,6 +1160,24 @@
             <!-- Status Messages -->
             <div id="statusMessage" style="display: none;"></div>
 
+            <!-- Court Type Selection Overlay -->
+            <div class="court-type-overlay" id="courtTypeOverlay">
+                <div class="court-type-card">
+                    <h3>Select Court Type</h3>
+                    <p>This determines how many basket regions to track.</p>
+                    <div class="court-type-options">
+                        <button class="court-type-btn" onclick="selectCourtType('half')">
+                            <div class="court-type-btn-title">Half-Court</div>
+                            <div class="court-type-btn-desc">Track 1 basket — best for half-court games</div>
+                        </button>
+                        <button class="court-type-btn" onclick="selectCourtType('full')">
+                            <div class="court-type-btn-title">Full-Court <span class="beta-badge">Beta</span></div>
+                            <div class="court-type-btn-desc">Track 2 baskets — less accurate, for full-court games</div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- FFmpeg Loading Overlay -->
             <div class="ffmpeg-loading" id="ffmpegLoading">
                 <div class="ffmpeg-loading-card">
@@ -1185,6 +1204,9 @@
     <!-- State & utilities -->
     <script src="js/state.js"></script>
     <script src="js/utils.js"></script>
+
+    <!-- Court type selection -->
+    <script src="js/court-type.js"></script>
 
     <!-- Independent modules -->
     <script src="js/perf.js"></script>
