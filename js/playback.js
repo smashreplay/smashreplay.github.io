@@ -1,7 +1,7 @@
 function jumpToHighlight(timestamp) {
     const video = document.getElementById('videoPlayer');
     const startTime = Math.max(0, timestamp - 3); // Start 3 seconds before
-    const endTime = timestamp + 1; // Stop 1 second after
+    const endTime = timestamp + 2; // Stop 2 seconds after
 
     video.currentTime = startTime;
     video.play();
@@ -143,7 +143,7 @@ function playNextHighlight() {
     }
 
     const startTime = Math.max(0, highlight.timestamp - 3);
-    const endTime = highlight.timestamp + 1;
+    const endTime = highlight.timestamp + 2;
     const clipDuration = endTime - startTime;
 
     document.getElementById('overlayClipDuration').textContent = clipDuration.toFixed(1) + 's';
