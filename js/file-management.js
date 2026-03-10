@@ -38,16 +38,14 @@ function loadVideo() {
         // Set up keyboard navigation
         setupKeyboardNavigation();
 
+        // videoSection is already visible — show banner immediately so it appears
+        // even if the seek never completes (e.g. black/broken frame)
+        showVideoHealthWarning();
+
         // Seek to the middle of the video so the user gets a useful frame
         const midTime = Math.min(video.duration / 2, video.duration - 0.1);
         video.currentTime = midTime;
         processingVideo.currentTime = 0.001; // processing video just needs decoder warm-up
-
-        // Show the reload banner after the seek completes so videoSection is fully visible
-        video.addEventListener('seeked', function onInitialSeekBanner() {
-            video.removeEventListener('seeked', onInitialSeekBanner);
-            showVideoHealthWarning();
-        }, { once: true });
 
         // Show court type prompt before starting region selection
         showCourtTypePrompt(function () {
