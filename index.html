@@ -959,8 +959,8 @@
                     <div id="setupGuide" style="display: none;"></div>
                     
                     <div class="video-container">
-                        <video id="videoPlayer" controls></video>
-                        <video id="processingVideo" style="display: none;"></video>
+                        <video id="videoPlayer" controls playsinline webkit-playsinline preload="auto"></video>
+                        <video id="processingVideo" style="display: none;" playsinline webkit-playsinline muted preload="auto"></video>
                         <canvas id="canvas"></canvas>
                         <canvas id="selectionCanvas"></canvas>
                         <div class="basket-overlay-controls" id="basketOverlayControls">
