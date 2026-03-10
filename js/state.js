@@ -24,6 +24,13 @@ let playAllListener = null;
 let chartData = [];        // {time, motions[], thresholds[], detected}
 let chartDetections = [];  // timestamps where detections fired
 
+// Trapezoid geometry (fractions of the bounding rectangle)
+const TRAP_TOP_INSET = 0.25;     // inset from each side at top edge
+const TRAP_BOTTOM_INSET = 0.45;  // inset from each side at bottom edge
+const TRAP_TOP_Y = 0.30;         // top edge position (fraction of height)
+const TRAP_BOTTOM_Y = 0.70;      // bottom edge position (fraction of height)
+const TRAP_MARGIN = 0.03;        // extra margin around trapezoid for detection
+
 // EMA anomaly detection state — per region
 const EMA_ALPHA = 0.08;    // Smoothing factor — lower = slower adaptation
 const ANOMALY_K = 2;       // Std deviations above mean to trigger

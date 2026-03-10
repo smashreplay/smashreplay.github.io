@@ -146,10 +146,10 @@ function handleOverlayPointerUp(e) {
 
 function drawBasketGuide(ctx, x, y, w, h, color) {
     // Trapezoid representing basketball hoop (wide top) narrowing to net (narrow bottom)
-    const topInset = w * 0.1;
-    const bottomInset = w * 0.35;
-    const topY = y + h * 0.18;
-    const bottomY = y + h * 0.82;
+    const topInset = w * TRAP_TOP_INSET;
+    const bottomInset = w * TRAP_BOTTOM_INSET;
+    const topY = y + h * TRAP_TOP_Y;
+    const bottomY = y + h * TRAP_BOTTOM_Y;
     const topLeft  = x + topInset;
     const topRight = x + w - topInset;
     const botLeft  = x + bottomInset;
