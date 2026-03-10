@@ -955,9 +955,15 @@
             <!-- Video Section -->
             <div class="video-section" id="videoSection" style="display: none;">
                 <div class="video-column">
+                    <!-- Video health warning banner -->
+                    <div id="videoHealthWarning" style="display: none; background: #fff3cd; color: #856404; border: 1px solid #ffc107; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; font-size: 14px; align-items: center; gap: 10px; justify-content: space-between;">
+                        <span>Video appears black. The browser may not have loaded it correctly.</span>
+                        <button onclick="retryVideoLoad()" style="background: #ffc107; color: #856404; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap;">Tap to Retry</button>
+                    </div>
+
                     <!-- Setup guide (hidden) -->
                     <div id="setupGuide" style="display: none;"></div>
-                    
+
                     <div class="video-container">
                         <video id="videoPlayer" controls></video>
                         <video id="processingVideo" style="display: none;"></video>
@@ -1196,6 +1202,9 @@
     <script src="js/export.js"></script>
     <script src="js/sharing.js"></script>
     <script src="js/post-detection-modal.js"></script>
+
+    <!-- Video health check -->
+    <script src="js/video-health.js"></script>
 
     <!-- Modules that call across many others -->
     <script src="js/file-management.js"></script>
