@@ -24,47 +24,20 @@ function reloadAndRetry() {
     video.src = '';
     processingVideo.src = '';
 
-    // Small delay then reload — wait for BOTH video elements before retrying
+    // Small delay then reload
     setTimeout(() => {
         video.src = src;
         processingVideo.src = src;
 
-        let mainReady = false;
-        let procReady = false;
-        let started = false;
-
-        function startProcessing() {
-            if (started) return;
-            started = true;
-            showStatus(`Video reloaded (attempt ${_slowRetryCount}). Starting detection...`, 'complete');
-            setTimeout(() => processVideo(), 300);
-        }
-
-        function onBothReady() {
-            if (!mainReady || !procReady) return;
-
+        video.onloadedmetadata = () => {
             // Force first frame render on both
             video.currentTime = 0.001;
             processingVideo.currentTime = 0.001;
 
-            // Wait for processingVideo to actually decode a frame before starting
-            processingVideo.addEventListener('seeked', () => startProcessing(), { once: true });
-
-            // Safety timeout in case seeked never fires
-            setTimeout(() => startProcessing(), 5000);
-        }
-
-        video.onloadedmetadata = () => { mainReady = true; onBothReady(); };
-        processingVideo.onloadedmetadata = () => { procReady = true; onBothReady(); };
-
-        // Safety: if processingVideo is very slow, don't block forever
-        setTimeout(() => {
-            if (!procReady) {
-                console.warn('[Recovery] processingVideo metadata timeout');
-                procReady = true;
-                onBothReady();
-            }
-        }, 8000);
+            showStatus(`Video reloaded (attempt ${_slowRetryCount}). Starting detection...`, 'complete');
+            // Auto-start processing after a brief moment for decoder to settle
+            setTimeout(() => processVideo(), 500);
+        };
     }, 200);
 }
 
