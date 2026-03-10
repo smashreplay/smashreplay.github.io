@@ -43,8 +43,11 @@ function loadVideo() {
         video.currentTime = midTime;
         processingVideo.currentTime = 0.001; // processing video just needs decoder warm-up
 
-        // Always show the reload banner so users know they can retry if preview is black
-        showVideoHealthWarning();
+        // Show the reload banner after the seek completes so videoSection is fully visible
+        video.addEventListener('seeked', function onInitialSeekBanner() {
+            video.removeEventListener('seeked', onInitialSeekBanner);
+            showVideoHealthWarning();
+        }, { once: true });
 
         // Show court type prompt before starting region selection
         showCourtTypePrompt(function () {
@@ -94,6 +97,19 @@ function retryVideoLoad() {
         }, { once: true });
 
         initSelectionCanvas();
+
+        // Re-render existing basket regions (fixes selection box disappearing after reload)
+        updateRegionDisplay();
+
+        // Re-apply gray overlay if user was mid-selection when reload was triggered
+        if (isSelectingRegion) {
+            var canvas = document.getElementById('selectionCanvas');
+            canvas.classList.add('active');
+            canvas.classList.remove('has-regions');
+            document.getElementById('basketOverlayControls').classList.add('active');
+            syncCanvasSize();
+            drawOverlay();
+        }
     };
 }
 
