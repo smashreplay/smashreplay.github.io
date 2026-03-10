@@ -43,6 +43,18 @@ function loadVideo() {
         video.currentTime = midTime;
         processingVideo.currentTime = 0.001; // processing video just needs decoder warm-up
 
+        // Check video health once the seek completes
+        video.addEventListener('seeked', function onHealthCheck() {
+            video.removeEventListener('seeked', onHealthCheck);
+            var health = checkVideoHealth(video);
+            console.log('[Health] Video frame check:', health);
+            if (health.isBlack) {
+                showVideoHealthWarning();
+            } else {
+                hideVideoHealthWarning();
+            }
+        }, { once: true });
+
         // Show court type prompt before starting region selection
         showCourtTypePrompt(function () {
             // By the time the user picks a court type, the mid-video seek has already completed
@@ -55,6 +67,43 @@ function loadVideo() {
 
     video.onerror = () => {
         showStatus('Error loading video. Check the file format.', 'error');
+    };
+}
+
+function retryVideoLoad() {
+    if (!videoFile) return;
+    console.log('[Health] Retrying video load...');
+    hideVideoHealthWarning();
+
+    var video = document.getElementById('videoPlayer');
+    var processingVideo = document.getElementById('processingVideo');
+
+    // Revoke old URL and create fresh one
+    if (video.src) URL.revokeObjectURL(video.src);
+    var url = URL.createObjectURL(videoFile);
+
+    video.removeAttribute('crossorigin');
+    processingVideo.removeAttribute('crossorigin');
+    video.src = url;
+    processingVideo.src = url;
+
+    video.onloadedmetadata = function () {
+        var midTime = Math.min(video.duration / 2, video.duration - 0.1);
+        video.currentTime = midTime;
+        processingVideo.currentTime = 0.001;
+
+        video.addEventListener('seeked', function onRetryHealthCheck() {
+            video.removeEventListener('seeked', onRetryHealthCheck);
+            var health = checkVideoHealth(video);
+            console.log('[Health] Retry frame check:', health);
+            if (health.isBlack) {
+                showVideoHealthWarning();
+            } else {
+                hideVideoHealthWarning();
+            }
+        }, { once: true });
+
+        initSelectionCanvas();
     };
 }
 
