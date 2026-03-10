@@ -125,60 +125,7 @@ async function warmUpVideo(video, statusMsg) {
         video.addEventListener('seeked', () => { clearTimeout(timeout); done(); }, { once: true });
     });
 
-    // Step 3: Verify the decoder is producing real frames (not all-black).
-    // On iOS Safari without playsinline, drawImage can return black pixels.
-    const testCanvas = document.createElement('canvas');
-    testCanvas.width = 64;
-    testCanvas.height = 36;
-    const testCtx = testCanvas.getContext('2d');
-
-    let blackRetries = 0;
-    const MAX_BLACK_RETRIES = 3;
-
-    while (blackRetries < MAX_BLACK_RETRIES) {
-        testCtx.drawImage(video, 0, 0, 64, 36);
-        const pixels = testCtx.getImageData(0, 0, 64, 36).data;
-
-        // Check if frame is all-black: average RGB brightness
-        let totalBrightness = 0;
-        for (let i = 0; i < pixels.length; i += 4) {
-            totalBrightness += pixels[i] + pixels[i + 1] + pixels[i + 2];
-        }
-        const avgBrightness = totalBrightness / (64 * 36 * 3);
-
-        if (avgBrightness > 5) {
-            break; // Frame has real content
-        }
-
-        blackRetries++;
-        console.warn('[Perf] Black frame detected on warmup attempt', blackRetries,
-            '- avg brightness:', avgBrightness.toFixed(2));
-
-        if (blackRetries < MAX_BLACK_RETRIES) {
-            // Force reload the source and try again
-            showStatus(statusMsg + ' Re-initializing decoder...', 'processing');
-            const src = video.src;
-            video.src = '';
-            video.src = src;
-            await new Promise(r => {
-                const onMeta = () => { video.removeEventListener('loadedmetadata', onMeta); r(); };
-                video.addEventListener('loadedmetadata', onMeta);
-                setTimeout(r, 5000);
-            });
-            video.currentTime = 0.5; // seek slightly further in
-            await new Promise(r => {
-                video.addEventListener('seeked', r, { once: true });
-                setTimeout(r, 3000);
-            });
-        }
-    }
-
-    if (blackRetries >= MAX_BLACK_RETRIES) {
-        console.error('[Perf] Video decoder still producing black frames after', MAX_BLACK_RETRIES, 'retries');
-    }
-
     console.log('[Perf] Video warmed up. readyState:', video.readyState,
-        'blackRetries:', blackRetries,
         'buffered ranges:', video.buffered.length > 0
             ? Array.from({length: video.buffered.length}, (_, i) =>
                 `${video.buffered.start(i).toFixed(1)}-${video.buffered.end(i).toFixed(1)}s`).join(', ')
