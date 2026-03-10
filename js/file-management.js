@@ -21,7 +21,14 @@ function loadVideo() {
     video.src = url;
     processingVideo.src = url;
 
-    video.onloadedmetadata = () => {
+    // Wait for BOTH video elements to have metadata before proceeding.
+    // On mobile, processingVideo may lag behind videoPlayer.
+    let videoPlayerReady = false;
+    let processingVideoReady = false;
+
+    function onBothReady() {
+        if (!videoPlayerReady || !processingVideoReady) return;
+
         document.getElementById('emptyState').style.display = 'none';
         document.getElementById('videoSection').style.display = 'grid';
         highlights = [];
@@ -51,10 +58,34 @@ function loadVideo() {
             }
             showStatus('Position the box over the basket, then tap Confirm.', 'complete');
         });
+    }
+
+    video.onloadedmetadata = () => {
+        videoPlayerReady = true;
+        onBothReady();
     };
+
+    processingVideo.onloadedmetadata = () => {
+        processingVideoReady = true;
+        onBothReady();
+    };
+
+    // Safety timeout: if processingVideo hasn't loaded after 5s, proceed anyway
+    // (the warmup in processing.js will handle further waiting)
+    setTimeout(() => {
+        if (!processingVideoReady) {
+            console.warn('[Load] processingVideo metadata timeout — proceeding anyway');
+            processingVideoReady = true;
+            onBothReady();
+        }
+    }, 5000);
 
     video.onerror = () => {
         showStatus('Error loading video. Check the file format.', 'error');
+    };
+
+    processingVideo.onerror = () => {
+        console.error('[Load] processingVideo failed to load');
     };
 }
 
