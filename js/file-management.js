@@ -43,17 +43,8 @@ function loadVideo() {
         video.currentTime = midTime;
         processingVideo.currentTime = 0.001; // processing video just needs decoder warm-up
 
-        // Check video health once the seek completes
-        video.addEventListener('seeked', function onHealthCheck() {
-            video.removeEventListener('seeked', onHealthCheck);
-            var health = checkVideoHealth(video);
-            console.log('[Health] Video frame check:', health);
-            if (health.isBlack) {
-                showVideoHealthWarning();
-            } else {
-                hideVideoHealthWarning();
-            }
-        }, { once: true });
+        // Always show the reload banner so users know they can retry if preview is black
+        showVideoHealthWarning();
 
         // Show court type prompt before starting region selection
         showCourtTypePrompt(function () {
@@ -98,9 +89,8 @@ function retryVideoLoad() {
             console.log('[Health] Retry frame check:', health);
             if (health.isBlack) {
                 showVideoHealthWarning();
-            } else {
-                hideVideoHealthWarning();
             }
+            // If no longer black, leave banner hidden (already hidden before retry)
         }, { once: true });
 
         initSelectionCanvas();
