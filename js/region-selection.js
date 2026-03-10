@@ -1,18 +1,21 @@
-function initSelectionCanvas() {
+function syncCanvasSize() {
+    if (!selectionCanvas) return;
     const video = document.getElementById('videoPlayer');
+    const rect = video.getBoundingClientRect();
+    if (rect.width > 0) {
+        selectionCanvas.width = rect.width;
+        selectionCanvas.height = rect.height;
+    }
+    redrawRegion();
+}
+
+function initSelectionCanvas() {
     selectionCanvas = document.getElementById('selectionCanvas');
     selectionCtx = selectionCanvas.getContext('2d');
 
-    // Match canvas size to video element
-    const updateCanvasSize = () => {
-        const rect = video.getBoundingClientRect();
-        selectionCanvas.width = rect.width;
-        selectionCanvas.height = rect.height;
-        redrawRegion();
-    };
-
-    updateCanvasSize();
-    window.addEventListener('resize', updateCanvasSize);
+    syncCanvasSize();
+    window.addEventListener('resize', syncCanvasSize);
+    window.addEventListener('orientationchange', () => setTimeout(syncCanvasSize, 150));
 
     // Interaction handlers for draggable overlay
     selectionCanvas.addEventListener('mousedown', handleOverlayPointerDown);
@@ -165,18 +168,25 @@ function drawBasketGuide(ctx, x, y, w, h, color) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.fill();
 
-    // Dashed outline for the full trapezoid
+    // Dashed outline for three sides: left diagonal, top edge, right diagonal
     ctx.beginPath();
-    ctx.moveTo(topLeft, topY);
+    ctx.moveTo(botLeft, bottomY);
+    ctx.lineTo(topLeft, topY);
     ctx.lineTo(topRight, topY);
     ctx.lineTo(botRight, bottomY);
-    ctx.lineTo(botLeft,  bottomY);
-    ctx.closePath();
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([5, 4]);
     ctx.stroke();
     ctx.setLineDash([]);
+
+    // Solid colored bottom edge (net base)
+    ctx.beginPath();
+    ctx.moveTo(botLeft, bottomY);
+    ctx.lineTo(botRight, bottomY);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
 
     // Solid accent line at the top edge (represents the rim)
     ctx.beginPath();
@@ -218,7 +228,7 @@ function drawOverlay() {
     selectionCtx.strokeRect(x, y, w, h);
 
     // Draw corner handles
-    const hs = 5; // visual handle half-size
+    const hs = 9; // visual handle half-size
     const corners = [
         [x, y], [x + w, y],
         [x, y + h], [x + w, y + h]

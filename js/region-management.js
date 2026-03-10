@@ -20,8 +20,11 @@ function toggleRegionSelection() {
         overlayControls.classList.add('active');
         document.getElementById('videoPlayer').pause();
 
-        // Create a default overlay region centered on the video
-        overlayRegion = { x: 0.425, y: 0.34, width: 0.15, height: 0.175 };
+        // Sync canvas size in case the user scrolled before selecting
+        syncCanvasSize();
+
+        // Create a default overlay region centered on the video (larger default)
+        overlayRegion = { x: 0.35, y: 0.25, width: 0.30, height: 0.30 };
         drawOverlay();
     } else {
         canvas.classList.remove('active');
