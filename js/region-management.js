@@ -183,6 +183,9 @@ function redrawRegion() {
             selectionCtx.lineWidth = 3;
             selectionCtx.strokeRect(x, y, width, height);
 
+            // Draw trapezoid guide showing the active detection area
+            drawBasketGuide(selectionCtx, x, y, width, height, region.color);
+
             // Draw label with background — position above the box
             const label = `BASKET ${region.number}`;
             selectionCtx.font = 'bold 12px sans-serif';

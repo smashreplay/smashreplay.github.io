@@ -13,6 +13,54 @@ function computeMeanBrightness(data, width, height, startX, startY, endX, endY, 
     return count > 0 ? sum / count : 0;
 }
 
+// Compute trapezoid pixel boundaries for a region. Returns startY, endY, and
+// a getRowBounds(y) function that returns {left, right} for each scanline.
+function getTrapezoidBounds(region, frameWidth, frameHeight) {
+    const rx = region.x * frameWidth;
+    const ry = region.y * frameHeight;
+    const rw = region.width * frameWidth;
+    const rh = region.height * frameHeight;
+
+    const topY = ry + rh * TRAP_TOP_Y;
+    const botY = ry + rh * TRAP_BOTTOM_Y;
+    const topLeftX  = rx + rw * TRAP_TOP_INSET;
+    const topRightX = rx + rw * (1 - TRAP_TOP_INSET);
+    const botLeftX  = rx + rw * TRAP_BOTTOM_INSET;
+    const botRightX = rx + rw * (1 - TRAP_BOTTOM_INSET);
+
+    const marginX = rw * TRAP_MARGIN;
+    const marginY = rh * TRAP_MARGIN;
+
+    return {
+        startY: Math.max(0, Math.floor(topY - marginY)),
+        endY:   Math.min(frameHeight, Math.floor(botY + marginY)),
+        getRowBounds(y) {
+            const t = Math.max(0, Math.min(1, (y - topY) / (botY - topY)));
+            const leftX  = topLeftX  + t * (botLeftX  - topLeftX)  - marginX;
+            const rightX = topRightX + t * (botRightX - topRightX) + marginX;
+            return {
+                left:  Math.max(0, Math.floor(leftX)),
+                right: Math.min(frameWidth, Math.floor(rightX))
+            };
+        }
+    };
+}
+
+// Mean brightness over trapezoid-bounded pixels.
+function computeTrapezoidMeanBrightness(data, width, trap, step) {
+    let sum = 0;
+    let count = 0;
+    for (let y = trap.startY; y < trap.endY; y += step) {
+        const bounds = trap.getRowBounds(y);
+        for (let x = bounds.left; x < bounds.right; x += step) {
+            const idx = (y * width + x) * 4;
+            sum += (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+            count++;
+        }
+    }
+    return count > 0 ? sum / count : 0;
+}
+
 // Returns array of per-region motion values, or [fullFrameMotion] if no regions.
 // Brightness-normalized: subtracts per-frame mean luminance before differencing
 // so that global light changes (arena dimming/brightening) don't register as motion.
@@ -24,22 +72,19 @@ function detectMotion(frame1, frame2) {
 
     if (basketRegions.length > 0) {
         return basketRegions.map(region => {
-            const startX = Math.floor(region.x * width);
-            const startY = Math.floor(region.y * height);
-            const endX = Math.floor((region.x + region.width) * width);
-            const endY = Math.floor((region.y + region.height) * height);
+            const trap = getTrapezoidBounds(region, width, height);
 
-            const mean1 = computeMeanBrightness(data1, width, height, startX, startY, endX, endY, 2);
-            const mean2 = computeMeanBrightness(data2, width, height, startX, startY, endX, endY, 2);
+            const mean1 = computeTrapezoidMeanBrightness(data1, width, trap, 2);
+            const mean2 = computeTrapezoidMeanBrightness(data2, width, trap, 2);
             const brightnessDelta = mean2 - mean1;
 
             let regionDiff = 0;
             let regionCount = 0;
 
-            for (let y = startY; y < endY; y += 2) {
-                for (let x = startX; x < endX; x += 2) {
+            for (let y = trap.startY; y < trap.endY; y += 2) {
+                const bounds = trap.getRowBounds(y);
+                for (let x = bounds.left; x < bounds.right; x += 2) {
                     const idx = (y * width + x) * 4;
-                    // Subtract global brightness shift from frame2 channels
                     const r = Math.abs(data1[idx] - (data2[idx] - brightnessDelta));
                     const g = Math.abs(data1[idx + 1] - (data2[idx + 1] - brightnessDelta));
                     const b = Math.abs(data1[idx + 2] - (data2[idx + 2] - brightnessDelta));
@@ -102,7 +147,11 @@ function updateRegionEMA(regionIdx, motion) {
 function getScaledMinThreshold(regionIdx) {
     if (basketRegions.length === 0 || regionIdx >= basketRegions.length) return MIN_THRESHOLD;
     const region = basketRegions[regionIdx];
-    const regionArea = region.width * region.height;
+    // Effective area is the trapezoid, not the full rectangle
+    const trapHeight = TRAP_BOTTOM_Y - TRAP_TOP_Y;
+    const avgTrapWidth = 1 - TRAP_TOP_INSET - TRAP_BOTTOM_INSET;
+    const trapFraction = trapHeight * avgTrapWidth;
+    const regionArea = region.width * region.height * trapFraction;
     const referenceArea = 0.01; // 10% × 10% — small hoop-sized region
     if (regionArea <= referenceArea) return MIN_THRESHOLD;
     const scale = Math.sqrt(referenceArea / regionArea);
