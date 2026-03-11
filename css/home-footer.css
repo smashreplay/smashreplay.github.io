@@ -1,0 +1,123 @@
+/* Waitlist section */
+#waitlist {
+    background: var(--grad-dark);
+    text-align: center;
+}
+
+#waitlist .home-section__label { color: rgba(100, 255, 218, 0.8); }
+
+#waitlist .home-section__sub {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.waitlist-form {
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+.waitlist-form__row {
+    display: flex;
+    gap: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+.waitlist-form__input {
+    flex: 1;
+    padding: 16px 20px;
+    border: none;
+    font-size: 1rem;
+    outline: none;
+    font-family: var(--font);
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--color-text);
+}
+
+.waitlist-form__input::placeholder { color: #aaa; }
+
+.waitlist-form__submit {
+    padding: 16px 24px;
+    border: none;
+    background: var(--grad-hero);
+    color: #ffffff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: var(--font);
+    white-space: nowrap;
+    transition: opacity 0.15s;
+}
+
+.waitlist-form__submit:hover { opacity: 0.9; }
+
+.waitlist-trust {
+    margin-top: 14px;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.waitlist-count {
+    margin-top: 32px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 24px;
+    padding: 8px 20px;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.waitlist-count strong { color: #64ffda; }
+
+/* Footer */
+footer {
+    background: #0a0a18;
+    padding: 28px 24px;
+}
+
+.footer__inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.footer__copy {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.footer__links {
+    display: flex;
+    gap: 24px;
+    list-style: none;
+}
+
+.footer__links a {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.35);
+    transition: color 0.2s;
+}
+
+.footer__links a:hover { color: rgba(255, 255, 255, 0.7); }
+
+.footer__tagline {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.2);
+    font-style: italic;
+}
+
+@media (max-width: 600px) {
+    .waitlist-form__row { flex-direction: column; border-radius: 10px; }
+    .waitlist-form__input { border-radius: 10px 10px 0 0; }
+    .waitlist-form__submit { border-radius: 0 0 10px 10px; padding: 14px; }
+    .footer__inner { flex-direction: column; text-align: center; }
+    .footer__tagline { display: none; }
+}

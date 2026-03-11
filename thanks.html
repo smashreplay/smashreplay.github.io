@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You're on the list — Smash Replay</title>
+    <link rel="stylesheet" href="css/home-base.css">
+    <style>
+        body {
+            background: var(--grad-dark);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px 24px;
+        }
+        .thanks-card {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 20px;
+            padding: 56px 48px;
+            max-width: 480px;
+            width: 100%;
+        }
+        .thanks-icon { font-size: 4rem; margin-bottom: 24px; }
+        .thanks-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 12px;
+        }
+        .thanks-sub {
+            font-size: 1rem;
+            color: rgba(255,255,255,0.65);
+            line-height: 1.6;
+            margin-bottom: 36px;
+        }
+        .thanks-sub strong { color: #64ffda; }
+        @media (max-width: 480px) {
+            .thanks-card { padding: 36px 24px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="thanks-card">
+        <div class="thanks-icon">🏀</div>
+        <h1 class="thanks-title">You're on the list.</h1>
+        <p class="thanks-sub">
+            We'll hit you up the moment cloud features go live.<br>
+            <strong>Founding members get 3 months free.</strong><br><br>
+            In the meantime, try the free highlight detector right now.
+        </p>
+        <a href="/app" class="btn-home btn-home--primary" style="justify-content: center;">
+            Try It Free &rarr;
+        </a>
+    </div>
+</body>
+</html>

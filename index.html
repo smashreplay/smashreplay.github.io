@@ -2,1212 +2,283 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Basketball Highlights Detector</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            overflow-x: hidden;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-
-        .header p {
-            opacity: 0.9;
-            font-size: 16px;
-        }
-
-        .content {
-            padding: 30px;
-        }
-
-        .input-section {
-            background: #f8f9fa;
-            padding: 25px;
-            border-radius: 12px;
-            margin-bottom: 30px;
-        }
-
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .tab {
-            padding: 10px 20px;
-            border: none;
-            background: white;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .tab:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .tab.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .input-group {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        input[type="text"],
-        input[type="file"] {
-            flex: 1;
-            padding: 12px 16px;
-            border: 2px solid #e1e8ed;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.2s;
-        }
-
-        input[type="text"]:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-primary:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .btn-secondary {
-            background: #e1e8ed;
-            color: #333;
-        }
-
-        .btn-secondary:hover {
-            background: #d1d8dd;
-        }
-
-        .video-section {
-            display: grid;
-            grid-template-columns: 1.5fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-            align-items: start;
-        }
-
-        @media (max-width: 968px) {
-            .video-section {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* Mobile-specific styles for phones */
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-            
-            .container {
-                border-radius: 8px;
-            }
-            
-            .header {
-                padding: 15px 20px !important;
-            }
-            
-            .header h1 {
-                font-size: 20px !important;
-            }
-            
-            .content {
-                padding: 15px !important;
-            }
-            
-            .upload-section {
-                padding: 20px !important;
-            }
-            
-            .tabs {
-                flex-direction: column;
-                gap: 8px;
-            }
-            
-            .tab {
-                width: 100%;
-                justify-content: center;
-            }
-            
-            .btn {
-                padding: 12px 20px !important;
-                font-size: 14px !important;
-                width: 100%;
-            }
-            
-            .video-section {
-                padding: 15px !important;
-            }
-            
-            .settings {
-                padding: 15px !important;
-            }
-            
-            /* Make sure video player is visible */
-            .video-container {
-                height: auto !important;
-                min-height: 200px;
-            }
-            
-            .video-container video {
-                width: 100%;
-                height: auto;
-            }
-            
-            /* Stack highlights vertically on mobile */
-            .highlights-container {
-                max-height: none;
-                overflow-y: auto;
-            }
-            
-            .highlight-item {
-                flex-direction: row;
-                padding: 10px;
-            }
-            
-            .highlight-thumbnail {
-                width: 100px !important;
-                height: 75px !important;
-            }
-            
-            /* Make overlay more compact on mobile */
-            #videoOverlay {
-                padding: 8px 12px !important;
-                font-size: 12px !important;
-                bottom: 50px !important;
-            }
-            
-            #videoOverlay button {
-                width: 28px !important;
-                height: 28px !important;
-                font-size: 14px !important;
-            }
-            
-            /* (setupGuide styles removed) */
-        }
-
-        @media (max-width: 480px) {
-            body {
-                padding: 5px;
-            }
-            
-            .header h1 {
-                font-size: 18px !important;
-            }
-            
-            .content {
-                padding: 10px !important;
-            }
-            
-            .upload-section {
-                padding: 15px !important;
-            }
-            
-            /* Even more compact on very small screens */
-            #videoOverlay {
-                font-size: 11px !important;
-                padding: 6px 10px !important;
-            }
-        }
-
-        .video-column {
-            position: sticky;
-            top: 20px;
-        }
-
-        .video-section.theater-mode {
-            grid-template-columns: 1fr;
-            gap: 15px;
-        }
-
-        .video-section.theater-mode .video-column {
-            position: relative;
-        }
-
-        .video-section.theater-mode .video-container {
-            height: 70vh;
-        }
-
-        .video-section.theater-mode video {
-            height: 100%;
-            object-fit: contain;
-        }
-
-        .video-section.theater-mode #videoOverlay {
-            bottom: 80px;
-            font-size: 16px;
-        }
-
-        .video-section.theater-mode .highlights-container {
-            max-height: none;
-        }
-
-        .video-section.theater-mode .highlights-list {
-            display: flex;
-            flex-direction: row;
-            overflow-x: auto;
-            overflow-y: hidden;
-            gap: 12px;
-            padding-bottom: 10px;
-            scroll-behavior: smooth;
-        }
-
-        .video-section.theater-mode .highlight-item {
-            flex-direction: column;
-            min-width: 160px;
-            max-width: 160px;
-        }
-
-        .video-section.theater-mode .highlight-thumbnail {
-            width: 100%;
-            height: 90px;
-        }
-
-        .highlight-item.playing {
-            border-color: #667eea;
-            background: #f0f4ff;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
-        }
-
-        .video-container {
-            background: #000;
-            border-radius: 12px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        video {
-            width: 100%;
-            display: block;
-        }
-
-        canvas {
-            display: none;
-        }
-
-        #selectionCanvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            cursor: default;
-            display: none;
-            touch-action: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        #selectionCanvas.active {
-            display: block;
-        }
-
-        #selectionCanvas.has-regions {
-            display: block;
-            pointer-events: none;
-        }
-
-        .basket-overlay-controls {
-            display: none;
-            position: absolute;
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 200;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .basket-overlay-controls.active {
-            display: flex;
-        }
-
-        .basket-overlay-controls button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-
-        .basket-overlay-controls .confirm-btn {
-            background: #4CAF50;
-            color: white;
-        }
-
-        .basket-overlay-controls .cancel-btn {
-            background: rgba(255,255,255,0.9);
-            color: #333;
-        }
-
-
-        .help-text {
-            font-size: 12px;
-            color: #666;
-            margin-top: 8px;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 6px;
-            border-left: 3px solid #667eea;
-        }
-
-        @keyframes fadeSlideIn {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes pulseGlow {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.5); }
-            50% { box-shadow: 0 0 16px 4px rgba(76, 175, 80, 0.4); }
-        }
-
-        .highlights-container {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            max-height: calc(100vh - 100px);
-            overflow-y: auto;
-        }
-
-        .highlights-list {
-            display: grid;
-            gap: 12px;
-            max-height: none;
-        }
-
-        .progress-container {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            border: 2px solid #e1e8ed;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #e1e8ed;
-            border-radius: 4px;
-            overflow: hidden;
-            margin-bottom: 10px;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-            transition: width 0.3s;
-        }
-
-        .progress-text {
-            text-align: center;
-            color: #666;
-            font-size: 14px;
-        }
-
-        .motion-chart-container {
-            margin-top: 15px;
-            background: #1a1a2e;
-            border-radius: 8px;
-            padding: 12px;
-            position: relative;
-        }
-
-        .motion-chart-container canvas {
-            display: block;
-            width: 100%;
-            height: 160px;
-            border-radius: 4px;
-        }
-
-        .motion-chart-container h4 {
-            color: #ccc;
-            font-size: 12px;
-            margin: 0 0 8px 0;
-            font-weight: 600;
-        }
-
-        .motion-chart-legend {
-            display: flex;
-            gap: 12px;
-            font-size: 10px;
-            color: #aaa;
-            margin-top: 6px;
-            flex-wrap: wrap;
-        }
-
-        .motion-chart-legend span {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .motion-chart-legend .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-
-        .status {
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .status.processing {
-            background: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeaa7;
-        }
-
-        .status.complete {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .status.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .highlights-section {
-            background: #f8f9fa;
-            padding: 25px;
-            border-radius: 12px;
-        }
-
-        .highlights-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .highlights-header h2 {
-            font-size: 24px;
-            color: #333;
-        }
-
-        .highlight-count {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .highlights-list {
-            display: grid;
-            gap: 12px;
-        }
-
-        .highlight-item {
-            background: white;
-            padding: 12px;
-            border-radius: 8px;
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            transition: all 0.2s;
-            cursor: pointer;
-            border: 2px solid transparent;
-        }
-
-        .highlight-item:hover {
-            border-color: #667eea;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
-        }
-
-        .highlight-thumbnail {
-            width: 140px;
-            height: 105px;
-            background: #000;
-            border-radius: 6px;
-            overflow: hidden;
-            flex-shrink: 0;
-            position: relative;
-        }
-
-        .highlight-thumbnail img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .highlight-thumbnail .play-icon {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 24px;
-            height: 24px;
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-        }
-
-        .highlight-info {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            flex: 1;
-        }
-
-        .highlight-number {
-            width: 32px;
-            height: 32px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 14px;
-            flex-shrink: 0;
-        }
-
-        .highlight-time {
-            font-size: 16px;
-            font-weight: 600;
-            color: #333;
-        }
-
-        .confidence {
-            font-size: 11px;
-            color: #666;
-            background: #e1e8ed;
-            padding: 3px 6px;
-            border-radius: 4px;
-            display: inline-block;
-        }
-
-        .region-label {
-            font-size: 11px;
-            color: #667eea;
-            font-weight: 600;
-        }
-
-        .export-section {
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 2px solid #e1e8ed;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #999;
-        }
-
-        .empty-state svg {
-            width: 80px;
-            height: 80px;
-            margin-bottom: 20px;
-            opacity: 0.3;
-        }
-
-        .spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-        }
-
-        /* Performance diagnostics panel */
-        .perf-panel {
-            margin-top: 12px;
-            background: #1a1a2e;
-            border-radius: 8px;
-            overflow: hidden;
-            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-            font-size: 11px;
-        }
-        .perf-panel-toggle {
-            width: 100%;
-            padding: 8px 12px;
-            background: #16213e;
-            color: #a8b2d1;
-            border: none;
-            cursor: pointer;
-            text-align: left;
-            font-size: 11px;
-            font-family: inherit;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .perf-panel-toggle:hover { background: #1a2744; }
-        .perf-panel-body {
-            padding: 10px 12px;
-            color: #ccd6f6;
-            line-height: 1.7;
-            display: none;
-        }
-        .perf-panel-body.open { display: block; }
-        .perf-row {
-            display: flex;
-            justify-content: space-between;
-        }
-        .perf-label { color: #8892b0; }
-        .perf-val { color: #64ffda; font-weight: 600; }
-        .perf-val.warn { color: #ffd166; }
-        .perf-val.bad { color: #ff5252; }
-        .perf-separator {
-            border-top: 1px solid #233554;
-            margin: 6px 0;
-        }
-        .slow-processing-banner {
-            background: #fff3cd;
-            border: 2px solid #ffc107;
-            border-radius: 10px;
-            padding: 14px 16px;
-            margin-top: 12px;
-            text-align: center;
-        }
-        .slow-processing-banner p {
-            color: #664d03;
-            font-size: 13px;
-            margin-bottom: 10px;
-            line-height: 1.4;
-        }
-        .slow-processing-banner button {
-            background: #ffc107;
-            color: #664d03;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-weight: 700;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        .slow-processing-banner button:hover { background: #ffca2c; }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .settings {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-        }
-
-        .setting-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .setting-row:last-child {
-            margin-bottom: 0;
-        }
-
-        .setting-label {
-            font-size: 14px;
-            color: #333;
-            font-weight: 500;
-        }
-
-        .setting-description {
-            font-size: 12px;
-            color: #666;
-            margin-top: 4px;
-        }
-
-        input[type="range"] {
-            width: 150px;
-        }
-
-        .setting-value {
-            font-size: 14px;
-            font-weight: 600;
-            color: #667eea;
-            min-width: 40px;
-            text-align: right;
-        }
-
-        /* Highlight toggle switch */
-        .highlight-toggle {
-            position: relative;
-            width: 40px;
-            height: 22px;
-            flex-shrink: 0;
-        }
-
-        .highlight-toggle input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: #ccc;
-            border-radius: 22px;
-            transition: 0.2s;
-        }
-
-        .toggle-slider:before {
-            content: "";
-            position: absolute;
-            height: 16px;
-            width: 16px;
-            left: 3px;
-            bottom: 3px;
-            background: white;
-            border-radius: 50%;
-            transition: 0.2s;
-        }
-
-        .highlight-toggle input:checked + .toggle-slider {
-            background: #667eea;
-        }
-
-        .highlight-toggle input:checked + .toggle-slider:before {
-            transform: translateX(18px);
-        }
-
-        .highlight-item.disabled {
-            opacity: 0.4;
-            border-color: #e1e8ed !important;
-            box-shadow: none !important;
-        }
-
-        .highlight-item.disabled .highlight-thumbnail {
-            filter: grayscale(1);
-        }
-
-        /* Highlight action buttons */
-        .highlight-actions {
-            display: flex;
-            gap: 6px;
-            margin-top: 6px;
-        }
-
-        .highlight-actions button {
-            padding: 4px 8px;
-            border: 1px solid #e1e8ed;
-            background: white;
-            border-radius: 6px;
-            font-size: 11px;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            color: #555;
-        }
-
-        .highlight-actions button:hover {
-            border-color: #667eea;
-            color: #667eea;
-            background: #f0f4ff;
-        }
-
-        .highlight-actions button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .highlight-actions button.loading {
-            pointer-events: none;
-        }
-
-        /* FFmpeg loading overlay */
-        .ffmpeg-loading {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.6);
-            z-index: 9999;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .ffmpeg-loading.active {
-            display: flex;
-        }
-
-        .ffmpeg-loading-card {
-            background: white;
-            padding: 30px;
-            border-radius: 16px;
-            text-align: center;
-            max-width: 320px;
-            width: 90%;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-
-        .ffmpeg-loading-card h3 {
-            margin-bottom: 12px;
-            color: #333;
-        }
-
-        .ffmpeg-loading-card .progress-bar {
-            margin-bottom: 8px;
-        }
-
-        .ffmpeg-loading-card p {
-            font-size: 13px;
-            color: #666;
-        }
-    </style>
-    <link rel="stylesheet" href="css/court-type.css">
-    <link rel="stylesheet" href="css/post-detection-modal.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smash Replay — Turn Your Pickup Games Into Highlight Reels</title>
+    <meta name="description" content="Smash Replay automatically finds the best moments from your pickup basketball games. Upload your footage, get a highlight reel in minutes. No editing required.">
+    <link rel="stylesheet" href="css/home-base.css">
+    <link rel="stylesheet" href="css/home-nav.css">
+    <link rel="stylesheet" href="css/home-hero.css">
+    <link rel="stylesheet" href="css/home-sections.css">
+    <link rel="stylesheet" href="css/home-pricing.css">
+    <link rel="stylesheet" href="css/home-footer.css">
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🏀 Basketball Highlights Detector</h1>
-            <p>Automatically find made baskets in your pickup game videos</p>
+
+<!-- ── Navigation ── -->
+<nav id="main-nav" role="navigation" aria-label="Main">
+    <a href="/" class="nav__logo">🏀 Smash Replay</a>
+    <button class="nav__hamburger" id="nav-hamburger" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+    </button>
+    <ul class="nav__links" id="nav-links">
+        <li><a href="#how-it-works">How it works</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="/app" class="nav__cta">Try Free &rarr;</a></li>
+    </ul>
+</nav>
+
+<!-- ── Hero ── -->
+<section id="hero">
+    <div class="hero__inner">
+        <div class="hero__content">
+            <span class="hero__eyebrow">Pickup Basketball &bull; Auto Highlights</span>
+            <h1 class="hero__headline">Your phone is full of games you'll never watch.</h1>
+            <p class="hero__sub">Smash Replay scans your footage automatically, pulls every bucket, and hands you a tight highlight reel — in minutes. No editing. No scrubbing. No boring fouls.</p>
+            <div class="hero__actions">
+                <a href="/app" class="btn-home btn-home--primary">Try It Free &rarr;</a>
+                <a href="#how-it-works" class="btn-home btn-home--outline">See how it works &darr;</a>
+            </div>
+            <p class="hero__social-proof">Free to use &bull; Runs in your browser &bull; No account needed</p>
         </div>
-
-        <div class="content">
-            <!-- Input Section -->
-            <div class="input-section">
-                <div class="input-group" style="flex-direction: column;">
-                    <input type="file" id="videoFile" accept="video/*" onchange="handleFileUpload(event)">
-                </div>
-            </div>
-
-            <!-- Settings panel removed -->
-
-            <!-- Video Section -->
-            <div class="video-section" id="videoSection" style="display: none;">
-                <div class="video-column">
-                    <!-- Video health warning banner -->
-                    <div id="videoHealthWarning" style="display: none; background: #fff3cd; color: #856404; border: 1px solid #ffc107; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; font-size: 14px; align-items: center; gap: 10px; justify-content: space-between;">
-                        <span>If the preview is black, tap Reload to fix it.</span>
-                        <button onclick="retryVideoLoad()" style="background: #ffc107; color: #856404; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap;">Reload Video</button>
-                    </div>
-
-                    <!-- Setup guide (hidden) -->
-                    <div id="setupGuide" style="display: none;"></div>
-
-                    <div class="video-container">
-                        <video id="videoPlayer" controls></video>
-                        <video id="processingVideo" style="display: none;"></video>
-                        <canvas id="canvas"></canvas>
-                        <canvas id="selectionCanvas"></canvas>
-                        <div class="basket-overlay-controls" id="basketOverlayControls">
-                            <button class="cancel-btn" onclick="cancelOverlaySelection()">Cancel</button>
-                            <button class="confirm-btn" onclick="confirmOverlaySelection()">Confirm</button>
+        <div class="hero__visual" aria-hidden="true">
+            <div class="phone-mockup">
+                <div class="phone-mockup__notch"></div>
+                <div class="phone-mockup__screen">
+                    <div class="phone-screen__header">🏀 Smash Replay</div>
+                    <div class="phone-screen__video">▶</div>
+                    <div class="phone-screen__clips">
+                        <div class="phone-screen__clip">
+                            <div class="phone-screen__clip-thumb">🏀</div>
+                            <div class="phone-screen__clip-info">
+                                <div class="phone-screen__clip-time">12:34.2</div>
+                                <div class="phone-screen__clip-label">Basket detected</div>
+                            </div>
                         </div>
-
-                        <!-- Simplified Video Overlay - positioned below video controls -->
-                        <div id="videoOverlay" style="display: none; position: absolute; bottom: 60px; left: 10px; right: 10px; background: rgba(0, 0, 0, 0.8); padding: 12px 16px; border-radius: 8px; color: white; font-family: sans-serif; z-index: 100; pointer-events: auto;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div style="display: flex; align-items: center; gap: 15px;">
-                                    <button onclick="playPreviousClip()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; pointer-events: auto;">
-                                        ◀
-                                    </button>
-                                    <div>
-                                        <div style="font-size: 14px; font-weight: 600;">
-                                            Clip <span id="overlayClipNumber">1</span> of <span id="overlayTotalClips">0</span>
-                                        </div>
-                                        <div style="font-size: 11px; color: #ddd; margin-top: 2px;">
-                                            <span id="overlayTimestamp">0:00</span> • <span id="overlayClipTime">0.0s</span>/<span id="overlayClipDuration">4.0s</span>
-                                        </div>
-                                    </div>
-                                    <button onclick="playNextClip()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; pointer-events: auto;">
-                                        ▶
-                                    </button>
-                                </div>
-                                <div style="flex: 1; margin: 0 15px;">
-                                    <div style="width: 100%; height: 4px; background: rgba(255, 255, 255, 0.3); border-radius: 2px; overflow: hidden;">
-                                        <div id="overlayProgress" style="width: 0%; height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); transition: width 0.1s linear;"></div>
-                                    </div>
-                                </div>
+                        <div class="phone-screen__clip">
+                            <div class="phone-screen__clip-thumb">🏀</div>
+                            <div class="phone-screen__clip-info">
+                                <div class="phone-screen__clip-time">18:07.8</div>
+                                <div class="phone-screen__clip-label">Basket detected</div>
+                            </div>
+                        </div>
+                        <div class="phone-screen__clip">
+                            <div class="phone-screen__clip-thumb">🏀</div>
+                            <div class="phone-screen__clip-info">
+                                <div class="phone-screen__clip-time">31:52.1</div>
+                                <div class="phone-screen__clip-label">Basket detected</div>
                             </div>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 10px; margin-top: 10px;">
-                        <button class="btn btn-primary" onclick="startRegionSelection()" id="selectRegionBtn" style="flex: 1;">
-                            📍 Add Basket Region
-                        </button>
-                        <button class="btn btn-secondary" onclick="clearLastRegion()" id="clearRegionBtn" style="display: none;">
-                            ✕ Remove
-                        </button>
-                    </div>
-                    <div class="help-text" id="regionHelp" style="display: none; background: #f0f4ff; padding: 12px; border-radius: 8px; margin-top: 10px; font-size: 13px; color: #333;">
-                        <strong>Drag the box</strong> over the basket, then <strong>drag corners</strong> to resize. Tap <strong>Confirm</strong> when done.
-                    </div>
-                    
-                    <button class="btn btn-primary" onclick="processVideo()" id="processBtn" style="margin-top: 15px; width: 100%; display: none;">
-                        <span>▶ Play Clips</span>
-                    </button>
-                    
-                    <button class="btn btn-primary" onclick="playAllHighlights()" id="playAllBtn" style="margin-top: 10px; width: 100%; display: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                        <span>▶ Play All Highlights</span>
-                    </button>
                 </div>
-
-                <div class="highlights-container">
-                    <div class="progress-container" id="progressContainer" style="display: none;">
-                        <h3 style="margin-bottom: 15px;">Processing...</h3>
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
-                        </div>
-                        <div class="progress-text" id="progressText">0%</div>
-                        <div style="font-size: 13px; color: #333; margin-top: 15px; padding: 12px; background: white; border-radius: 8px;">
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                                <span>🎬 Frames Analyzed:</span>
-                                <strong id="framesAnalyzed">0</strong>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                                <span>🏀 Baskets Found:</span>
-                                <strong id="basketsFound">0</strong>
-                            </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <span>⏱️ Current Time:</span>
-                                <strong id="currentProcessTime">0:00</strong>
-                            </div>
-                        </div>
-                        <p style="font-size: 12px; color: #666; margin-top: 10px; text-align: center;">
-                            💡 You can watch the main video while processing continues
-                        </p>
-
-                        <!-- Performance diagnostics panel -->
-                        <div class="perf-panel" id="perfPanel">
-                            <button class="perf-panel-toggle" onclick="document.getElementById('perfPanelBody').classList.toggle('open'); this.querySelector('.arrow').textContent = document.getElementById('perfPanelBody').classList.contains('open') ? '▼' : '▶';">
-                                ⚡ Performance Diagnostics <span class="arrow">▶</span>
-                            </button>
-                            <div class="perf-panel-body" id="perfPanelBody">
-                                <div class="perf-row"><span class="perf-label">Video codec:</span><span class="perf-val" id="perfCodec">—</span></div>
-                                <div class="perf-row"><span class="perf-label">Video resolution:</span><span class="perf-val" id="perfResolution">—</span></div>
-                                <div class="perf-row"><span class="perf-label">Video duration:</span><span class="perf-val" id="perfDuration">—</span></div>
-                                <div class="perf-separator"></div>
-                                <div class="perf-row"><span class="perf-label">Frames processed:</span><span class="perf-val" id="perfFrameCount">0</span></div>
-                                <div class="perf-row"><span class="perf-label">Elapsed time:</span><span class="perf-val" id="perfElapsed">0s</span></div>
-                                <div class="perf-row"><span class="perf-label">Effective FPS:</span><span class="perf-val" id="perfFPS">—</span></div>
-                                <div class="perf-separator"></div>
-                                <div class="perf-row"><span class="perf-label">Avg seek time:</span><span class="perf-val" id="perfSeekAvg">—</span></div>
-                                <div class="perf-row"><span class="perf-label">Min / Max seek:</span><span class="perf-val" id="perfSeekRange">—</span></div>
-                                <div class="perf-row"><span class="perf-label">Seek timeouts (5s):</span><span class="perf-val" id="perfSeekTimeouts">0</span></div>
-                                <div class="perf-row"><span class="perf-label">Slow seeks (>500ms):</span><span class="perf-val" id="perfSlowSeeks">0</span></div>
-                                <div class="perf-separator"></div>
-                                <div class="perf-row"><span class="perf-label">Avg draw+read time:</span><span class="perf-val" id="perfDrawAvg">—</span></div>
-                                <div class="perf-row"><span class="perf-label">Avg motion calc:</span><span class="perf-val" id="perfMotionAvg">—</span></div>
-                                <div class="perf-row"><span class="perf-label">Avg total/frame:</span><span class="perf-val" id="perfFrameAvg">—</span></div>
-                                <div class="perf-separator"></div>
-                                <div class="perf-row"><span class="perf-label">Last 10 seeks (ms):</span></div>
-                                <div id="perfSeekHistory" style="color: #64ffda; word-break: break-all; margin-top: 2px;">—</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Motion chart - single persistent element, visible once processing starts -->
-                    <div class="motion-chart-container" id="motionChartContainer" style="display: none;">
-                        <h4>Motion Analysis</h4>
-                        <canvas id="motionChart"></canvas>
-                        <div class="motion-chart-legend" id="motionChartLegend">
-                            <span><span class="dot" style="background: #4fc3f7;"></span> Motion</span>
-                            <span><span class="dot" style="background: rgba(255,82,82,0.6);"></span> Threshold</span>
-                            <span><span class="dot" style="background: #4CAF50;"></span> Detection</span>
-                        </div>
-                    </div>
-
-                    <!-- Highlights Section -->
-                    <div class="highlights-section" id="highlightsSection" style="display: none;">
-                        <div class="highlights-header">
-                            <h2>Detected Highlights</h2>
-                            <span class="highlight-count" id="highlightCount">0 baskets</span>
-                        </div>
-                        
-                        <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 11px; color: #666;">
-                            <strong>Debug:</strong> Anomaly Burst = brief spike above dynamic threshold | Sharp Spike = sudden 2x increase
-                        </div>
-
-                        <div class="highlights-list" id="highlightsList"></div>
-
-                        <div class="export-section" style="display: flex; flex-wrap: wrap; gap: 8px;">
-                            <button class="btn btn-secondary" onclick="exportTimestamps()">
-                                📋 Copy Timestamps
-                            </button>
-                            <button class="btn btn-secondary" onclick="exportJSON()">
-                                💾 Download JSON
-                            </button>
-                            <button class="btn btn-secondary" onclick="exportClip()" id="exportClipBtn">
-                                🎬 Export Clips
-                            </button>
-                            <button class="btn btn-secondary" onclick="shareHighlights()" id="shareBtn" style="display: none;">
-                                📤 Share
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Status Messages -->
-            <div id="statusMessage" style="display: none;"></div>
-
-            <!-- Post-Detection: Download or Share Prompt -->
-            <div class="post-detection-overlay" id="postDetectionOverlay">
-                <div class="post-detection-card">
-                    <button class="post-detection-close" onclick="closePostDetectionModal()" aria-label="Close">&#x2715;</button>
-                    <h3>Highlights ready!</h3>
-                    <p>Found <span id="postDetectionCount">0</span> clip(s). Save or share your reel.</p>
-                    <div class="post-detection-actions">
-                        <button class="post-detection-btn download" onclick="handlePostDetectionDownload()">
-                            ⬇ Download Highlight Reel
-                        </button>
-                        <button class="post-detection-btn share" id="postDetectionShareBtn" onclick="handlePostDetectionShare()">
-                            <span id="postDetectionShareLabel">🔗 Share via Link</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Court Type Selection Overlay -->
-            <div class="court-type-overlay" id="courtTypeOverlay">
-                <div class="court-type-card">
-                    <h3>Select Court Type</h3>
-                    <p>This determines how many basket regions to track.</p>
-                    <div class="court-type-options">
-                        <button class="court-type-btn" onclick="selectCourtType('half')">
-                            <div class="court-type-btn-title">Half-Court</div>
-                            <div class="court-type-btn-desc">Track 1 basket — best for half-court games</div>
-                        </button>
-                        <button class="court-type-btn" onclick="selectCourtType('full')">
-                            <div class="court-type-btn-title">Full-Court <span class="beta-badge">Beta</span></div>
-                            <div class="court-type-btn-desc">Track 2 baskets — less accurate, for full-court games</div>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- FFmpeg Loading Overlay -->
-            <div class="ffmpeg-loading" id="ffmpegLoading">
-                <div class="ffmpeg-loading-card">
-                    <h3 id="ffmpegLoadingTitle">Loading Video Editor...</h3>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="ffmpegProgressFill" style="width: 0%"></div>
-                    </div>
-                    <p id="ffmpegLoadingText">Downloading FFmpeg (~30 MB, first time only)</p>
-                </div>
-            </div>
-
-            <!-- Empty State -->
-            <div class="empty-state" id="emptyState">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polygon points="10 8 16 12 10 16 10 8"></polygon>
-                </svg>
-                <h3>No video loaded</h3>
-                <p>Upload a video file or paste a URL to get started</p>
             </div>
         </div>
     </div>
+</section>
 
-    <!-- State & utilities -->
-    <script src="js/state.js"></script>
-    <script src="js/utils.js"></script>
+<!-- ── Is This For Me? ── -->
+<section id="for-who" class="home-section">
+    <div class="home-section__inner">
+        <p class="home-section__label">Who it's for</p>
+        <h2 class="home-section__title">Built for real players, not TV studios.</h2>
+        <p class="home-section__sub">Whether you run with the same crew every week or you're the one always hitting record — Smash Replay was made for you.</p>
+        <div class="audience-grid">
+            <div class="audience-card">
+                <div class="audience-card__icon">🏃</div>
+                <div class="audience-card__title">Pickup groups</div>
+                <div class="audience-card__desc">Film your runs. Keep only the buckets. Send the reel to the group chat before you've even left the gym.</div>
+            </div>
+            <div class="audience-card">
+                <div class="audience-card__icon">🏆</div>
+                <div class="audience-card__title">Rec leagues</div>
+                <div class="audience-card__desc">Build a season archive of your team's best plays. Watch the rivalry unfold over time.</div>
+            </div>
+            <div class="audience-card">
+                <div class="audience-card__icon">👨‍👩‍👧</div>
+                <div class="audience-card__title">Parents</div>
+                <div class="audience-card__desc">Your kid's best moments, automatically clipped and ready to share with the family.</div>
+            </div>
+            <div class="audience-card">
+                <div class="audience-card__icon">📱</div>
+                <div class="audience-card__title">Social creators</div>
+                <div class="audience-card__desc">Skip the editing. Get game-ready highlight clips for IG Reels, TikTok, and YouTube Shorts.</div>
+            </div>
+        </div>
+    </div>
+</section>
 
-    <!-- Court type selection -->
-    <script src="js/court-type.js"></script>
+<!-- ── How It Works ── -->
+<section id="how-it-works" class="home-section">
+    <div class="home-section__inner">
+        <p class="home-section__label">The process</p>
+        <h2 class="home-section__title home-section__title--light">Three steps. No editing skills required.</h2>
+        <p class="home-section__sub home-section__sub--light" style="margin-left:auto;margin-right:auto;text-align:center;">Your phone recording is enough. Smash Replay handles the rest.</p>
+        <div class="steps-row">
+            <div class="step">
+                <div class="step__number">1</div>
+                <div>
+                    <div class="step__icon">📤</div>
+                    <div class="step__title">Upload your game</div>
+                    <p class="step__desc">Drop in the full recording. Phone footage, landscape or portrait — it all works.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step__number">2</div>
+                <div>
+                    <div class="step__icon">🤖</div>
+                    <div class="step__title">AI finds the buckets</div>
+                    <p class="step__desc">Our motion detection scans every frame and spots scoring moments automatically — no manual tagging.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step__number">3</div>
+                <div>
+                    <div class="step__icon">🎬</div>
+                    <div class="step__title">Download your reel</div>
+                    <p class="step__desc">Get a tight highlight video, trimmed to the action, ready to share anywhere.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 
-    <!-- Independent modules -->
-    <script src="js/perf.js"></script>
-    <script src="js/motion-detection.js"></script>
-    <script src="js/chart.js"></script>
-    <script src="js/timeline.js"></script>
-    <script src="js/highlights-display.js"></script>
-    <script src="js/ffmpeg.js"></script>
-    <script src="js/recovery.js"></script>
+<!-- ── Demo ── -->
+<section id="demo" class="home-section">
+    <div class="home-section__inner">
+        <p class="home-section__label">Live demo</p>
+        <h2 class="home-section__title">It really works. Try it right now.</h2>
+        <p class="home-section__sub">Load your own video below or just explore the tool. No sign-up, no install, no catch.</p>
+        <div class="demo-browser">
+            <div class="demo-browser__chrome">
+                <div class="demo-browser__dots">
+                    <div class="demo-browser__dot"></div>
+                    <div class="demo-browser__dot"></div>
+                    <div class="demo-browser__dot"></div>
+                </div>
+                <div class="demo-browser__url">smashreplay.github.io/app</div>
+            </div>
+            <iframe
+                class="demo-browser__frame"
+                src="/app"
+                title="Smash Replay highlight detector demo"
+                loading="lazy"
+                sandbox="allow-scripts allow-same-origin allow-forms"
+            ></iframe>
+        </div>
+        <a href="/app" class="demo-open-link">Open full screen &rarr;</a>
+    </div>
+</section>
 
-    <!-- Modules with Layer 2 dependencies -->
-    <script src="js/region-selection.js"></script>
-    <script src="js/region-management.js"></script>
-    <script src="js/playback.js"></script>
-    <script src="js/export.js"></script>
-    <script src="js/sharing.js"></script>
-    <script src="js/post-detection-modal.js"></script>
+<!-- ── Pricing ── -->
+<section id="pricing" class="home-section">
+    <div class="home-section__inner">
+        <p class="home-section__label">Pricing</p>
+        <h2 class="home-section__title">Start free. Upgrade when you're ready.</h2>
+        <p class="home-section__sub">The highlight detector is free forever. Cloud features — gallery, archive, team pages — are coming soon.</p>
+        <div class="pricing-grid">
 
-    <!-- Video health check -->
-    <script src="js/video-health.js"></script>
+            <!-- Free -->
+            <div class="pricing-card">
+                <div class="pricing-card__tier">Free</div>
+                <div class="pricing-card__name">Starter</div>
+                <div class="pricing-card__tagline">For running one game a month</div>
+                <div class="pricing-card__price">
+                    <span class="pricing-card__amount pricing-card__amount--free">$0</span>
+                </div>
+                <div class="pricing-card__note">No credit card needed</div>
+                <hr class="pricing-card__divider">
+                <ul class="pricing-card__features">
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>1 game processed per month</li>
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>Up to 2 hours of footage</li>
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>Runs entirely in your browser</li>
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>Download highlight clips</li>
+                    <li class="pricing-card__feature pricing-card__feature--muted"><span class="pricing-feature-icon pricing-feature-icon--cross">✕</span>Cloud storage</li>
+                    <li class="pricing-card__feature pricing-card__feature--muted"><span class="pricing-feature-icon pricing-feature-icon--cross">✕</span>Game archive</li>
+                </ul>
+                <a href="/app" class="pricing-card__cta pricing-card__cta--outline">Try It Now &rarr;</a>
+            </div>
 
-    <!-- Modules that call across many others -->
-    <script src="js/file-management.js"></script>
-    <script src="js/processing.js"></script>
+            <!-- Pro (featured) -->
+            <div class="pricing-card pricing-card--featured">
+                <div class="pricing-badge">Most Popular</div>
+                <div class="pricing-card__tier">Pro</div>
+                <div class="pricing-card__name">Player</div>
+                <div class="pricing-card__tagline">For ballers who run regularly</div>
+                <div class="pricing-card__price">
+                    <span class="pricing-card__amount">$9</span>
+                    <span class="pricing-card__period">/month</span>
+                </div>
+                <div class="pricing-card__note">Cloud features launching soon</div>
+                <hr class="pricing-card__divider">
+                <ul class="pricing-card__features">
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>Unlimited games</li>
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>Up to 4 hours per game</li>
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>20 GB cloud storage</li>
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>1080p exports, no watermark</li>
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>Permanent share links</li>
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>Game archive gallery</li>
+                </ul>
+                <a href="#waitlist" class="pricing-card__cta pricing-card__cta--primary">Join Waitlist &rarr;</a>
+            </div>
+
+            <!-- Team -->
+            <div class="pricing-card">
+                <div class="pricing-card__tier">Team</div>
+                <div class="pricing-card__name">Squad</div>
+                <div class="pricing-card__tagline">For serious crews &amp; rec leagues</div>
+                <div class="pricing-card__price">
+                    <span class="pricing-card__amount">$29</span>
+                    <span class="pricing-card__period">/month</span>
+                </div>
+                <div class="pricing-card__note">~$6/player for a crew of 5</div>
+                <hr class="pricing-card__divider">
+                <ul class="pricing-card__features">
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>Everything in Player</li>
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>Up to 10 team members</li>
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>100 GB cloud storage</li>
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>Season archive</li>
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>Team page &amp; shared gallery</li>
+                    <li class="pricing-card__feature"><span class="pricing-feature-icon pricing-feature-icon--check">✓</span>Player tagging <span class="badge-soon">Soon</span></li>
+                </ul>
+                <a href="#waitlist" class="pricing-card__cta pricing-card__cta--outline">Join Waitlist &rarr;</a>
+            </div>
+
+        </div>
+        <p class="pricing-footnote">Cloud storage features are in development. Paid plans launch soon — join the waitlist for early access and a founding member discount.</p>
+    </div>
+</section>
+
+<!-- ── Waitlist ── -->
+<section id="waitlist" class="home-section">
+    <div class="home-section__inner">
+        <p class="home-section__label">Early access</p>
+        <h2 class="home-section__title home-section__title--light">Be first when cloud features launch.</h2>
+        <p class="home-section__sub home-section__sub--light" style="margin-left:auto;margin-right:auto;text-align:center;">Get notified when gallery, cloud storage, and team accounts go live.<br>Founding members get <strong style="color:#64ffda;">3 months free</strong>.</p>
+        <div class="waitlist-form">
+            <form class="waitlist-form__row" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
+                <input class="waitlist-form__input" type="email" name="email" placeholder="your@email.com" required autocomplete="email">
+                <input type="hidden" name="_next" value="/thanks">
+                <button class="waitlist-form__submit" type="submit">Join the Waitlist</button>
+            </form>
+            <p class="waitlist-trust">No spam. Unsubscribe anytime.</p>
+        </div>
+        <div class="waitlist-count">
+            Already waiting: <strong>early access open</strong>
+        </div>
+    </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer>
+    <div class="footer__inner">
+        <span class="footer__copy">&copy; 2026 Smash Replay</span>
+        <ul class="footer__links">
+            <li><a href="/app">Launch App</a></li>
+            <li><a href="https://github.com/smashreplay/smashreplay.github.io" target="_blank" rel="noopener">GitHub</a></li>
+        </ul>
+        <span class="footer__tagline">Built for the run.</span>
+    </div>
+</footer>
+
+<script src="js/home-nav.js"></script>
 </body>
 </html>

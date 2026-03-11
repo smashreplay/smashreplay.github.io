@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Basketball Highlights Detector — Smash Replay</title>
+    <link rel="stylesheet" href="css/app-layout.css">
+    <link rel="stylesheet" href="css/app-components.css">
+    <link rel="stylesheet" href="css/app-overlays.css">
+    <link rel="stylesheet" href="css/court-type.css">
+    <link rel="stylesheet" href="css/post-detection-modal.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><a href="/" style="color: inherit; text-decoration: none;">🏀 Smash Replay</a></h1>
+            <p>Automatically find made baskets in your pickup game videos</p>
+        </div>
+
+        <div class="content">
+            <!-- Input Section -->
+            <div class="input-section">
+                <div class="input-group" style="flex-direction: column;">
+                    <input type="file" id="videoFile" accept="video/*" onchange="handleFileUpload(event)">
+                </div>
+            </div>
+
+            <!-- Video Section -->
+            <div class="video-section" id="videoSection" style="display: none;">
+                <div class="video-column">
+                    <!-- Video health warning banner -->
+                    <div id="videoHealthWarning" style="display: none; background: #fff3cd; color: #856404; border: 1px solid #ffc107; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; font-size: 14px; align-items: center; gap: 10px; justify-content: space-between;">
+                        <span>If the preview is black, tap Reload to fix it.</span>
+                        <button onclick="retryVideoLoad()" style="background: #ffc107; color: #856404; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap;">Reload Video</button>
+                    </div>
+
+                    <!-- Setup guide (hidden) -->
+                    <div id="setupGuide" style="display: none;"></div>
+
+                    <div class="video-container">
+                        <video id="videoPlayer" controls></video>
+                        <video id="processingVideo" style="display: none;"></video>
+                        <canvas id="canvas"></canvas>
+                        <canvas id="selectionCanvas"></canvas>
+                        <div class="basket-overlay-controls" id="basketOverlayControls">
+                            <button class="cancel-btn" onclick="cancelOverlaySelection()">Cancel</button>
+                            <button class="confirm-btn" onclick="confirmOverlaySelection()">Confirm</button>
+                        </div>
+
+                        <!-- Video Overlay -->
+                        <div id="videoOverlay" style="display: none; position: absolute; bottom: 60px; left: 10px; right: 10px; background: rgba(0, 0, 0, 0.8); padding: 12px 16px; border-radius: 8px; color: white; font-family: sans-serif; z-index: 100; pointer-events: auto;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <button onclick="playPreviousClip()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; pointer-events: auto;">
+                                        ◀
+                                    </button>
+                                    <div>
+                                        <div style="font-size: 14px; font-weight: 600;">
+                                            Clip <span id="overlayClipNumber">1</span> of <span id="overlayTotalClips">0</span>
+                                        </div>
+                                        <div style="font-size: 11px; color: #ddd; margin-top: 2px;">
+                                            <span id="overlayTimestamp">0:00</span> • <span id="overlayClipTime">0.0s</span>/<span id="overlayClipDuration">4.0s</span>
+                                        </div>
+                                    </div>
+                                    <button onclick="playNextClip()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; pointer-events: auto;">
+                                        ▶
+                                    </button>
+                                </div>
+                                <div style="flex: 1; margin: 0 15px;">
+                                    <div style="width: 100%; height: 4px; background: rgba(255, 255, 255, 0.3); border-radius: 2px; overflow: hidden;">
+                                        <div id="overlayProgress" style="width: 0%; height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); transition: width 0.1s linear;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button class="btn btn-primary" onclick="startRegionSelection()" id="selectRegionBtn" style="flex: 1;">
+                            📍 Add Basket Region
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearLastRegion()" id="clearRegionBtn" style="display: none;">
+                            ✕ Remove
+                        </button>
+                    </div>
+                    <div class="help-text" id="regionHelp" style="display: none; background: #f0f4ff; padding: 12px; border-radius: 8px; margin-top: 10px; font-size: 13px; color: #333;">
+                        <strong>Drag the box</strong> over the basket, then <strong>drag corners</strong> to resize. Tap <strong>Confirm</strong> when done.
+                    </div>
+
+                    <button class="btn btn-primary" onclick="processVideo()" id="processBtn" style="margin-top: 15px; width: 100%; display: none;">
+                        <span>▶ Play Clips</span>
+                    </button>
+
+                    <button class="btn btn-primary" onclick="playAllHighlights()" id="playAllBtn" style="margin-top: 10px; width: 100%; display: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <span>▶ Play All Highlights</span>
+                    </button>
+                </div>
+
+                <div class="highlights-container">
+                    <div class="progress-container" id="progressContainer" style="display: none;">
+                        <h3 style="margin-bottom: 15px;">Processing...</h3>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">0%</div>
+                        <div style="font-size: 13px; color: #333; margin-top: 15px; padding: 12px; background: white; border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>🎬 Frames Analyzed:</span>
+                                <strong id="framesAnalyzed">0</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>🏀 Baskets Found:</span>
+                                <strong id="basketsFound">0</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>⏱️ Current Time:</span>
+                                <strong id="currentProcessTime">0:00</strong>
+                            </div>
+                        </div>
+                        <p style="font-size: 12px; color: #666; margin-top: 10px; text-align: center;">
+                            💡 You can watch the main video while processing continues
+                        </p>
+
+                        <!-- Performance diagnostics panel -->
+                        <div class="perf-panel" id="perfPanel">
+                            <button class="perf-panel-toggle" onclick="document.getElementById('perfPanelBody').classList.toggle('open'); this.querySelector('.arrow').textContent = document.getElementById('perfPanelBody').classList.contains('open') ? '▼' : '▶';">
+                                ⚡ Performance Diagnostics <span class="arrow">▶</span>
+                            </button>
+                            <div class="perf-panel-body" id="perfPanelBody">
+                                <div class="perf-row"><span class="perf-label">Video codec:</span><span class="perf-val" id="perfCodec">—</span></div>
+                                <div class="perf-row"><span class="perf-label">Video resolution:</span><span class="perf-val" id="perfResolution">—</span></div>
+                                <div class="perf-row"><span class="perf-label">Video duration:</span><span class="perf-val" id="perfDuration">—</span></div>
+                                <div class="perf-separator"></div>
+                                <div class="perf-row"><span class="perf-label">Frames processed:</span><span class="perf-val" id="perfFrameCount">0</span></div>
+                                <div class="perf-row"><span class="perf-label">Elapsed time:</span><span class="perf-val" id="perfElapsed">0s</span></div>
+                                <div class="perf-row"><span class="perf-label">Effective FPS:</span><span class="perf-val" id="perfFPS">—</span></div>
+                                <div class="perf-separator"></div>
+                                <div class="perf-row"><span class="perf-label">Avg seek time:</span><span class="perf-val" id="perfSeekAvg">—</span></div>
+                                <div class="perf-row"><span class="perf-label">Min / Max seek:</span><span class="perf-val" id="perfSeekRange">—</span></div>
+                                <div class="perf-row"><span class="perf-label">Seek timeouts (5s):</span><span class="perf-val" id="perfSeekTimeouts">0</span></div>
+                                <div class="perf-row"><span class="perf-label">Slow seeks (>500ms):</span><span class="perf-val" id="perfSlowSeeks">0</span></div>
+                                <div class="perf-separator"></div>
+                                <div class="perf-row"><span class="perf-label">Avg draw+read time:</span><span class="perf-val" id="perfDrawAvg">—</span></div>
+                                <div class="perf-row"><span class="perf-label">Avg motion calc:</span><span class="perf-val" id="perfMotionAvg">—</span></div>
+                                <div class="perf-row"><span class="perf-label">Avg total/frame:</span><span class="perf-val" id="perfFrameAvg">—</span></div>
+                                <div class="perf-separator"></div>
+                                <div class="perf-row"><span class="perf-label">Last 10 seeks (ms):</span></div>
+                                <div id="perfSeekHistory" style="color: #64ffda; word-break: break-all; margin-top: 2px;">—</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Motion chart -->
+                    <div class="motion-chart-container" id="motionChartContainer" style="display: none;">
+                        <h4>Motion Analysis</h4>
+                        <canvas id="motionChart"></canvas>
+                        <div class="motion-chart-legend" id="motionChartLegend">
+                            <span><span class="dot" style="background: #4fc3f7;"></span> Motion</span>
+                            <span><span class="dot" style="background: rgba(255,82,82,0.6);"></span> Threshold</span>
+                            <span><span class="dot" style="background: #4CAF50;"></span> Detection</span>
+                        </div>
+                    </div>
+
+                    <!-- Highlights Section -->
+                    <div class="highlights-section" id="highlightsSection" style="display: none;">
+                        <div class="highlights-header">
+                            <h2>Detected Highlights</h2>
+                            <span class="highlight-count" id="highlightCount">0 baskets</span>
+                        </div>
+
+                        <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 11px; color: #666;">
+                            <strong>Debug:</strong> Anomaly Burst = brief spike above dynamic threshold | Sharp Spike = sudden 2x increase
+                        </div>
+
+                        <div class="highlights-list" id="highlightsList"></div>
+
+                        <div class="export-section" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            <button class="btn btn-secondary" onclick="exportTimestamps()">
+                                📋 Copy Timestamps
+                            </button>
+                            <button class="btn btn-secondary" onclick="exportJSON()">
+                                💾 Download JSON
+                            </button>
+                            <button class="btn btn-secondary" onclick="exportClip()" id="exportClipBtn">
+                                🎬 Export Clips
+                            </button>
+                            <button class="btn btn-secondary" onclick="shareHighlights()" id="shareBtn" style="display: none;">
+                                📤 Share
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Messages -->
+            <div id="statusMessage" style="display: none;"></div>
+
+            <!-- Post-Detection Modal -->
+            <div class="post-detection-overlay" id="postDetectionOverlay">
+                <div class="post-detection-card">
+                    <button class="post-detection-close" onclick="closePostDetectionModal()" aria-label="Close">&#x2715;</button>
+                    <h3>Highlights ready!</h3>
+                    <p>Found <span id="postDetectionCount">0</span> clip(s). Save or share your reel.</p>
+                    <div class="post-detection-actions">
+                        <button class="post-detection-btn download" onclick="handlePostDetectionDownload()">
+                            ⬇ Download Highlight Reel
+                        </button>
+                        <button class="post-detection-btn share" id="postDetectionShareBtn" onclick="handlePostDetectionShare()">
+                            <span id="postDetectionShareLabel">🔗 Share via Link</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Court Type Selection Overlay -->
+            <div class="court-type-overlay" id="courtTypeOverlay">
+                <div class="court-type-card">
+                    <h3>Select Court Type</h3>
+                    <p>This determines how many basket regions to track.</p>
+                    <div class="court-type-options">
+                        <button class="court-type-btn" onclick="selectCourtType('half')">
+                            <div class="court-type-btn-title">Half-Court</div>
+                            <div class="court-type-btn-desc">Track 1 basket — best for half-court games</div>
+                        </button>
+                        <button class="court-type-btn" onclick="selectCourtType('full')">
+                            <div class="court-type-btn-title">Full-Court <span class="beta-badge">Beta</span></div>
+                            <div class="court-type-btn-desc">Track 2 baskets — less accurate, for full-court games</div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FFmpeg Loading Overlay -->
+            <div class="ffmpeg-loading" id="ffmpegLoading">
+                <div class="ffmpeg-loading-card">
+                    <h3 id="ffmpegLoadingTitle">Loading Video Editor...</h3>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="ffmpegProgressFill" style="width: 0%"></div>
+                    </div>
+                    <p id="ffmpegLoadingText">Downloading FFmpeg (~30 MB, first time only)</p>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="emptyState">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polygon points="10 8 16 12 10 16 10 8"></polygon>
+                </svg>
+                <h3>No video loaded</h3>
+                <p>Upload a video file to get started</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- State & utilities -->
+    <script src="js/state.js"></script>
+    <script src="js/utils.js"></script>
+
+    <!-- Court type selection -->
+    <script src="js/court-type.js"></script>
+
+    <!-- Independent modules -->
+    <script src="js/perf.js"></script>
+    <script src="js/motion-detection.js"></script>
+    <script src="js/chart.js"></script>
+    <script src="js/timeline.js"></script>
+    <script src="js/highlights-display.js"></script>
+    <script src="js/ffmpeg.js"></script>
+    <script src="js/recovery.js"></script>
+
+    <!-- Modules with Layer 2 dependencies -->
+    <script src="js/region-selection.js"></script>
+    <script src="js/region-management.js"></script>
+    <script src="js/playback.js"></script>
+    <script src="js/export.js"></script>
+    <script src="js/sharing.js"></script>
+    <script src="js/post-detection-modal.js"></script>
+
+    <!-- Video health check -->
+    <script src="js/video-health.js"></script>
+
+    <!-- Modules that call across many others -->
+    <script src="js/file-management.js"></script>
+    <script src="js/processing.js"></script>
+</body>
+</html>

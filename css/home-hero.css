@@ -1,0 +1,197 @@
+/* Hero section */
+#hero {
+    background: var(--grad-hero);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    padding: 120px 24px 80px;
+    position: relative;
+    overflow: hidden;
+}
+
+#hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    pointer-events: none;
+}
+
+.hero__inner {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+}
+
+.hero__content {}
+
+.hero__eyebrow {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 20px;
+    margin-bottom: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.hero__headline {
+    font-size: clamp(2.4rem, 5vw, 3.8rem);
+    font-weight: 900;
+    line-height: 1.1;
+    color: #ffffff;
+    margin-bottom: 20px;
+    letter-spacing: -0.02em;
+}
+
+.hero__sub {
+    font-size: 1.2rem;
+    color: rgba(255, 255, 255, 0.88);
+    max-width: 480px;
+    margin-bottom: 40px;
+    line-height: 1.65;
+}
+
+.hero__actions {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.hero__social-proof {
+    margin-top: 32px;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+/* Phone mockup */
+.hero__visual {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.phone-mockup {
+    width: 240px;
+    background: #1a1a2e;
+    border-radius: 36px;
+    padding: 16px 12px;
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.35), 0 0 0 2px rgba(255,255,255,0.12);
+    position: relative;
+    transform: rotate(3deg);
+}
+
+.phone-mockup__notch {
+    width: 80px;
+    height: 10px;
+    background: #0a0a18;
+    border-radius: 10px;
+    margin: 0 auto 14px;
+}
+
+.phone-mockup__screen {
+    background: #0f3460;
+    border-radius: 20px;
+    overflow: hidden;
+    min-height: 380px;
+    display: flex;
+    flex-direction: column;
+}
+
+.phone-screen__header {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    padding: 14px 12px;
+    text-align: center;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.phone-screen__video {
+    background: #000;
+    height: 130px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.4);
+    font-size: 2rem;
+}
+
+.phone-screen__clips {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+
+.phone-screen__clip {
+    background: rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.phone-screen__clip-thumb {
+    width: 36px;
+    height: 28px;
+    background: #233554;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+}
+
+.phone-screen__clip-info {
+    flex: 1;
+}
+
+.phone-screen__clip-time {
+    font-size: 0.65rem;
+    color: #64ffda;
+    font-weight: 700;
+    font-family: monospace;
+}
+
+.phone-screen__clip-label {
+    font-size: 0.55rem;
+    color: rgba(255,255,255,0.45);
+    margin-top: 1px;
+}
+
+/* Pulse animation on first clip to suggest "detecting" */
+.phone-screen__clip:first-child {
+    border-color: rgba(76, 195, 247, 0.4);
+    animation: clip-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes clip-pulse {
+    0%, 100% { border-color: rgba(76, 195, 247, 0.4); background: rgba(76, 195, 247, 0.05); }
+    50% { border-color: rgba(76, 195, 247, 0.8); background: rgba(76, 195, 247, 0.12); }
+}
+
+@media (max-width: 900px) {
+    .hero__inner {
+        grid-template-columns: 1fr;
+        text-align: center;
+    }
+
+    .hero__sub { max-width: 100%; }
+    .hero__actions { justify-content: center; }
+    .hero__social-proof { text-align: center; }
+    .hero__visual { display: none; }
+}
