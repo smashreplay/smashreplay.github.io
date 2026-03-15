@@ -1,8 +1,8 @@
 /* Design tokens */
 :root {
-    --grad-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --grad-hero: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    --grad-dark: linear-gradient(180deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+    --grad-primary: linear-gradient(135deg, #000000 0%, #000000 100%);
+    --grad-hero: linear-gradient(135deg, #000000 0%, #5a000c 100%);
+    --grad-dark: linear-gradient(180deg, #5a000c, #2d1515 60%, #0f3460 100%);
     --color-surface: #ffffff;
     --color-surface-alt: #f8f9fa;
     --color-border: #e1e8ed;
