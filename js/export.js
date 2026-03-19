@@ -109,7 +109,23 @@ async function exportClip() {
     // Sort highlights by timestamp so the stitched video is in order
     const sorted = [...enabled].sort((a, b) => a.timestamp - b.timestamp);
 
+    // Split into batches of 5 to prevent RAM crashes on mobile
+    const BATCH_SIZE = 5;
+    const batches = [];
+    for (let i = 0; i < sorted.length; i += BATCH_SIZE) {
+        batches.push(sorted.slice(i, i + BATCH_SIZE));
+    }
+    const totalBatches = batches.length;
+
     try {
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+            const batch = batches[batchIdx];
+            const batchLabel = totalBatches > 1 ? ` (batch ${batchIdx + 1} of ${totalBatches})` : '';
+
+            if (totalBatches > 1) {
+                titleEl.textContent = `Exporting Batch ${batchIdx + 1} of ${totalBatches}...`;
+            }
+
         // ── Phase 1: Extract each segment one at a time ──
         // For each clip we: read video → write to MEMFS → extract segment
         // → read segment back to JS → wipe MEMFS.  This keeps peak WASM
@@ -117,20 +133,20 @@ async function exportClip() {
         const segmentBuffers = []; // small Uint8Arrays (~4 s each)
         const inputName = `input.${ext}`;
 
-        for (let i = 0; i < sorted.length; i++) {
-            const h = sorted[i];
+            for (let i = 0; i < batch.length; i++) {
+                const h = batch[i];
             const segName = `seg.${ext}`;
             const startTime = Math.max(0, h.timestamp - 3);
             const duration = 5;
 
-            textEl.textContent = `Reading video for clip ${i + 1}...`;
+                textEl.textContent = `Reading video for clip ${i + 1}${batchLabel}...`;
             let data = await getVideoData();
             if (!data) throw new Error('Could not read video data');
 
             await ffmpegInstance.writeFile(inputName, new Uint8Array(data));
             data = null; // allow GC of the JS-heap copy
 
-            textEl.textContent = `Trimming clip ${i + 1} of ${sorted.length}...`;
+                textEl.textContent = `Trimming clip ${i + 1} of ${batch.length}${batchLabel}...`;
             await ffmpegInstance.exec([
                 '-ss', startTime.toFixed(2),
                 '-i', inputName,
@@ -146,7 +162,9 @@ async function exportClip() {
             await ffmpegInstance.deleteFile(segName).catch(() => {});
 
             segmentBuffers.push(segData);
-            progressEl.style.width = (5 + 60 * (i + 1) / sorted.length) + '%';
+                const batchProgress = batchIdx / totalBatches;
+                const batchShare = 1 / totalBatches;
+                progressEl.style.width = (5 + 60 * (batchProgress + batchShare * (i + 1) / batch.length)) + '%';
         }
 
         // ── Phase 2: Concatenate the small segments ──
@@ -157,7 +175,7 @@ async function exportClip() {
         if (segmentBuffers.length === 1) {
             outputBlob = new Blob([segmentBuffers[0].buffer], { type: mimeType });
         } else {
-            textEl.textContent = 'Stitching clips together...';
+                textEl.textContent = `Stitching clips together${batchLabel}...`;
             const segmentNames = [];
             for (let i = 0; i < segmentBuffers.length; i++) {
                 const name = `seg${i}.${ext}`;
@@ -187,13 +205,13 @@ async function exportClip() {
 
             outputBlob = new Blob([outputData.buffer], { type: mimeType });
         }
-        progressEl.style.width = '80%';
+            progressEl.style.width = (5 + 60 * (batchIdx + 1) / totalBatches + 20) + '%';
 
         // ── Phase 3: Overlay watermark (+ clip counters for multi-clip) ──
         {
             const counterFiles = [];
             try {
-                textEl.textContent = 'Adding overlays...';
+                    textEl.textContent = `Adding overlays${batchLabel}...`;
                 const video = document.getElementById('videoPlayer');
                 const vw = video.videoWidth || 1280;
                 const vh = video.videoHeight || 720;
@@ -210,13 +228,13 @@ async function exportClip() {
                 const inputArgs = ['-i', tmpInput];
                 let filter = '';
 
-                if (sorted.length > 1) {
+                    if (batch.length > 1) {
                     const clipDuration = 4;
                     const margin = Math.round(vw * 0.02);
 
                     // Counter PNGs are inputs 1..N
-                    for (let i = 0; i < sorted.length; i++) {
-                        const counterPNG = generateCounterPNG(i + 1, sorted.length, vw, vh);
+                        for (let i = 0; i < batch.length; i++) {
+                            const counterPNG = generateCounterPNG(i + 1, batch.length, vw, vh);
                         const name = `counter_${i}.png`;
                         await ffmpegInstance.writeFile(name, counterPNG);
                         counterFiles.push(name);
@@ -224,11 +242,11 @@ async function exportClip() {
                     }
 
                     // Watermark is input at index sorted.length + 1
-                    inputArgs.push('-i', 'watermark.png');
-                    const wmIdx = sorted.length + 1;
+                        inputArgs.push('-i', 'watermark.png');
+                        const wmIdx = batch.length + 1;
 
                     // Counter overlays — each gets an output label for chaining
-                    for (let i = 0; i < sorted.length; i++) {
+                        for (let i = 0; i < batch.length; i++) {
                         const inputIdx = i + 1;
                         const tStart = (i * clipDuration).toFixed(2);
                         const tEnd = ((i + 1) * clipDuration).toFixed(2);
@@ -239,7 +257,7 @@ async function exportClip() {
                     }
 
                     // Watermark overlay on top of final counter output
-                    filter += `;[${wmIdx}:v]format=rgba[wm];[s${sorted.length - 1}][wm]overlay=W-w-16:H-h-16`;
+                        filter += `;[${wmIdx}:v]format=rgba[wm];[s${batch.length - 1}][wm]overlay=W-w-16:H-h-16`;
                 } else {
                     // Single clip: watermark only (input 1)
                     inputArgs.push('-i', 'watermark.png');
@@ -274,18 +292,32 @@ async function exportClip() {
             }
         }
 
-        progressEl.style.width = '95%';
-        overlay.classList.remove('active');
-
-        const dlExt = 'mp4';
+            // ── Download this batch ──
+            const filename = totalBatches > 1
+                ? `highlights-batch-${batchIdx + 1}-of-${totalBatches}.mp4`
+                : 'highlights.mp4';
         const url = URL.createObjectURL(outputBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `highlights.${dlExt}`;
+            a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
 
-        showStatus(`${enabled.length} clip(s) stitched and exported!`, 'complete');
+            if (totalBatches > 1) {
+                showStatus(`Exported batch ${batchIdx + 1} of ${totalBatches} (${batch.length} clip${batch.length > 1 ? 's' : ''})`, 'processing');
+                // Pause briefly to let the browser breathe before the next batch
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        } // end batch loop
+
+        progressEl.style.width = '95%';
+        overlay.classList.remove('active');
+
+        if (totalBatches > 1) {
+            showStatus(`All ${totalBatches} batches exported (${enabled.length} clips total)!`, 'complete');
+        } else {
+            showStatus(`${enabled.length} clip(s) stitched and exported!`, 'complete');
+        }
     } catch (err) {
         console.error('Export error:', err);
         overlay.classList.remove('active');
