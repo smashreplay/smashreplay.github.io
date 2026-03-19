@@ -1,5 +1,40 @@
 // ─── Counter Overlay for Exported Video ───
 
+function generateWatermarkPNG(videoWidth, videoHeight) {
+    const fontSize = Math.max(12, Math.round(videoHeight * 0.025));
+    const text = 'Captured By Swish Replay';
+    const padX = Math.round(fontSize * 0.7);
+    const padY = Math.round(fontSize * 0.4);
+
+    const measure = document.createElement('canvas');
+    const mCtx = measure.getContext('2d');
+    mCtx.font = `bold ${fontSize}px sans-serif`;
+    const textWidth = Math.ceil(mCtx.measureText(text).width);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = textWidth + padX * 2;
+    canvas.height = fontSize + padY * 2;
+    const ctx = canvas.getContext('2d');
+
+    // Dark shadow for visibility on any background
+    ctx.shadowColor = 'rgba(0,0,0,0.85)';
+    ctx.shadowBlur = Math.round(fontSize * 0.35);
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const binary = atob(dataUrl.split(',')[1]);
+    const arr = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+    return arr;
+}
+
 function generateCounterPNG(clipNumber, totalClips, videoWidth, videoHeight) {
     const fontSize = Math.max(16, Math.round(videoHeight * 0.04));
     const text = `${clipNumber}/${totalClips}`;
