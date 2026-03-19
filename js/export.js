@@ -32,15 +32,24 @@ async function exportSingleClip(index) {
         const watermarkPNG = generateWatermarkPNG(vw, vh);
         await ffmpegInstance.writeFile('watermark.png', watermarkPNG);
 
+        const dateStr = videoFile ? formatVideoDate(videoFile) : '';
+        const datePNG = dateStr ? generateDatePNG(dateStr, vw, vh) : null;
+        if (datePNG) await ffmpegInstance.writeFile('datestamp.png', datePNG);
+
         const wmInputName = 'wm_in.mp4';
         const wmOutputName = 'wm_out.mp4';
         await ffmpegInstance.writeFile(wmInputName, new Uint8Array(await blob.arrayBuffer()));
         wmProgressEl.style.width = '50%';
 
+        const singleInputArgs = ['-i', wmInputName, '-i', 'watermark.png'];
+        if (datePNG) singleInputArgs.push('-i', 'datestamp.png');
+        const singleFilter = datePNG
+            ? '[1:v]format=rgba[wm];[2:v]format=rgba[dt];[0:v][wm]overlay=W-w-16:H-h-16[tmp];[tmp][dt]overlay=W-w-16:16'
+            : '[1:v]format=rgba[wm];[0:v][wm]overlay=W-w-16:H-h-16';
+
         await ffmpegInstance.exec([
-            '-i', wmInputName,
-            '-i', 'watermark.png',
-            '-filter_complex', '[1:v]format=rgba[wm];[0:v][wm]overlay=W-w-16:H-h-16',
+            ...singleInputArgs,
+            '-filter_complex', singleFilter,
             '-c:v', 'libx264',
             '-preset', 'ultrafast',
             '-crf', '23',
@@ -55,12 +64,14 @@ async function exportSingleClip(index) {
         await ffmpegInstance.deleteFile(wmInputName).catch(() => {});
         await ffmpegInstance.deleteFile(wmOutputName).catch(() => {});
         await ffmpegInstance.deleteFile('watermark.png').catch(() => {});
+        await ffmpegInstance.deleteFile('datestamp.png').catch(() => {});
 
         finalBlob = new Blob([outputData.buffer], { type: 'video/mp4' });
         wmOverlay.classList.remove('active');
     } catch (wmErr) {
         console.warn('Watermark pass failed, exporting without it:', wmErr);
         await ffmpegInstance.deleteFile('watermark.png').catch(() => {});
+        await ffmpegInstance.deleteFile('datestamp.png').catch(() => {});
         await ffmpegInstance.deleteFile('wm_in.mp4').catch(() => {});
         await ffmpegInstance.deleteFile('wm_out.mp4').catch(() => {});
         wmOverlay.classList.remove('active');
@@ -220,11 +231,15 @@ async function exportClip() {
                 const watermarkPNG = generateWatermarkPNG(vw, vh);
                 await ffmpegInstance.writeFile('watermark.png', watermarkPNG);
 
+                const dateStr = videoFile ? formatVideoDate(videoFile) : '';
+                const datePNG = dateStr ? generateDatePNG(dateStr, vw, vh) : null;
+                if (datePNG) await ffmpegInstance.writeFile('datestamp.png', datePNG);
+
                 const tmpInput = `tmp_in.${ext}`;
                 const tmpInputData = new Uint8Array(await outputBlob.arrayBuffer());
                 await ffmpegInstance.writeFile(tmpInput, tmpInputData);
 
-                // Build input args: video (0), [counters 1..N if multi-clip], watermark (last)
+                // Build input args: video (0), [counters 1..N if multi-clip], watermark (last or last-1), datestamp (last if present)
                 const inputArgs = ['-i', tmpInput];
                 let filter = '';
 
@@ -241,9 +256,12 @@ async function exportClip() {
                         inputArgs.push('-i', name);
                     }
 
-                    // Watermark is input at index sorted.length + 1
+                    // Watermark is input at index batch.length + 1
                         inputArgs.push('-i', 'watermark.png');
                         const wmIdx = batch.length + 1;
+                    // Datestamp is next input if present
+                    if (datePNG) inputArgs.push('-i', 'datestamp.png');
+                    const dtIdx = batch.length + 2;
 
                     // Counter overlays — each gets an output label for chaining
                         for (let i = 0; i < batch.length; i++) {
@@ -256,12 +274,19 @@ async function exportClip() {
                         filter += `[${inputIdx}:v]format=rgba[c${i}];[${prevLabel}][c${i}]overlay=${margin}:${margin}:enable='between(t,${tStart},${tEnd})'[s${i}]`;
                     }
 
-                    // Watermark overlay on top of final counter output
+                    // Watermark overlay (bottom-right) on top of final counter output
+                    if (datePNG) {
+                        filter += `;[${wmIdx}:v]format=rgba[wm];[s${batch.length - 1}][wm]overlay=W-w-16:H-h-16[tmp_wm];[${dtIdx}:v]format=rgba[dt];[tmp_wm][dt]overlay=W-w-16:16`;
+                    } else {
                         filter += `;[${wmIdx}:v]format=rgba[wm];[s${batch.length - 1}][wm]overlay=W-w-16:H-h-16`;
+                    }
                 } else {
-                    // Single clip: watermark only (input 1)
+                    // Single clip: watermark (input 1), datestamp (input 2 if present)
                     inputArgs.push('-i', 'watermark.png');
-                    filter = '[1:v]format=rgba[wm];[0:v][wm]overlay=W-w-16:H-h-16';
+                    if (datePNG) inputArgs.push('-i', 'datestamp.png');
+                    filter = datePNG
+                        ? '[1:v]format=rgba[wm];[2:v]format=rgba[dt];[0:v][wm]overlay=W-w-16:H-h-16[tmp];[tmp][dt]overlay=W-w-16:16'
+                        : '[1:v]format=rgba[wm];[0:v][wm]overlay=W-w-16:H-h-16';
                 }
 
                 const finalName = 'final.mp4';
@@ -280,6 +305,7 @@ async function exportClip() {
                 const finalData = await ffmpegInstance.readFile(finalName);
                 await ffmpegInstance.deleteFile(tmpInput).catch(() => {});
                 await ffmpegInstance.deleteFile('watermark.png').catch(() => {});
+                await ffmpegInstance.deleteFile('datestamp.png').catch(() => {});
                 for (const cf of counterFiles) await ffmpegInstance.deleteFile(cf).catch(() => {});
                 await ffmpegInstance.deleteFile(finalName).catch(() => {});
 
@@ -287,6 +313,7 @@ async function exportClip() {
             } catch (tlErr) {
                 console.warn('Overlay failed, exporting without it:', tlErr);
                 await ffmpegInstance.deleteFile('watermark.png').catch(() => {});
+                await ffmpegInstance.deleteFile('datestamp.png').catch(() => {});
                 for (const cf of counterFiles) await ffmpegInstance.deleteFile(cf).catch(() => {});
                 // Continue with the original outputBlob (no overlays)
             }
@@ -322,7 +349,7 @@ async function exportClip() {
         console.error('Export error:', err);
         overlay.classList.remove('active');
         // Best-effort MEMFS cleanup on failure
-        const filesToClean = [`input.${ext}`, `output.${ext}`, `seg.${ext}`, 'concat.txt', `tmp_in.${ext}`, 'timeline.png', 'final.mp4', 'watermark.png'];
+        const filesToClean = [`input.${ext}`, `output.${ext}`, `seg.${ext}`, 'concat.txt', `tmp_in.${ext}`, 'timeline.png', 'final.mp4', 'watermark.png', 'datestamp.png'];
         for (let i = 0; i < enabled.length; i++) {
             filesToClean.push(`seg${i}.${ext}`, `counter_${i}.png`);
         }
