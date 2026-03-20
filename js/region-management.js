@@ -23,9 +23,17 @@ function toggleRegionSelection() {
         // Sync canvas size in case the user scrolled before selecting
         syncCanvasSize();
 
-        // Create a default overlay region centered on the video (larger default)
-        overlayRegion = { x: 0.35, y: 0.25, width: 0.30, height: 0.30 };
-        drawOverlay();
+        if (basketSelectionMode === 'click') {
+            // No initial overlay; the hint is drawn by drawOverlay
+            overlayRegion = null;
+            canvas.style.cursor = 'crosshair';
+            drawOverlay();
+        } else {
+            canvas.style.cursor = '';
+            // Create a default overlay region centered on the video (larger default)
+            overlayRegion = { x: 0.35, y: 0.25, width: 0.30, height: 0.30 };
+            drawOverlay();
+        }
     } else {
         canvas.classList.remove('active');
         if (basketRegions.length > 0) canvas.classList.add('has-regions');
@@ -147,6 +155,25 @@ function updateGuidedWorkflow() {
 
         // Scroll the panel into view
         panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+}
+
+function setSelectionMode(mode) {
+    basketSelectionMode = mode;
+    document.getElementById('modeBtnDrag').classList.toggle('active', mode === 'drag');
+    document.getElementById('modeBtnClick').classList.toggle('active', mode === 'click');
+    document.getElementById('regionHelpDrag').style.display = mode === 'drag' ? 'block' : 'none';
+    document.getElementById('regionHelpClick').style.display = mode === 'click' ? 'block' : 'none';
+    if (isSelectingRegion) {
+        const canvas = document.getElementById('selectionCanvas');
+        if (mode === 'click') {
+            overlayRegion = null;
+            canvas.style.cursor = 'crosshair';
+        } else {
+            if (!overlayRegion) overlayRegion = { x: 0.35, y: 0.25, width: 0.30, height: 0.30 };
+            canvas.style.cursor = '';
+        }
+        drawOverlay();
     }
 }
 

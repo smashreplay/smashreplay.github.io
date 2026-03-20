@@ -66,8 +66,23 @@ function hitTestOverlay(px, py) {
     return null;
 }
 
+const DEFAULT_CLICK_W = 0.20;
+const DEFAULT_CLICK_H = 0.25;
+
+function handleClickToPlace(e) {
+    e.preventDefault();
+    const pos = getPointerPos(e);
+    const x = Math.max(0, Math.min(1 - DEFAULT_CLICK_W, pos.nx - DEFAULT_CLICK_W / 2));
+    const y = Math.max(0, Math.min(1 - DEFAULT_CLICK_H, pos.ny - DEFAULT_CLICK_H / 2));
+    overlayRegion = { x, y, width: DEFAULT_CLICK_W, height: DEFAULT_CLICK_H };
+    drawOverlay();
+    confirmOverlaySelection();
+}
+
 function handleOverlayPointerDown(e) {
-    if (!isSelectingRegion || !overlayRegion) return;
+    if (!isSelectingRegion) return;
+    if (basketSelectionMode === 'click') { handleClickToPlace(e); return; }
+    if (!overlayRegion) return;
     e.preventDefault();
     const pos = getPointerPos(e);
     const hit = hitTestOverlay(pos.px, pos.py);
@@ -204,6 +219,21 @@ function drawOverlay() {
     // Dark overlay
     selectionCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     selectionCtx.fillRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+
+    // In click mode with room for more regions, show a tap hint
+    if (basketSelectionMode === 'click' && basketRegions.length < getMaxRegions()) {
+        const cw = selectionCanvas.width;
+        const ch = selectionCanvas.height;
+        const hint = 'Tap where the basket is \u2191';
+        selectionCtx.font = 'bold 16px sans-serif';
+        const tw = selectionCtx.measureText(hint).width;
+        const px = (cw - tw) / 2;
+        const py = ch * 0.18;
+        selectionCtx.fillStyle = 'rgba(0,0,0,0.55)';
+        selectionCtx.fillRect(px - 10, py - 22, tw + 20, 34);
+        selectionCtx.fillStyle = 'white';
+        selectionCtx.fillText(hint, px, py);
+    }
 
     if (!overlayRegion) return;
 
