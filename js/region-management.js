@@ -17,21 +17,22 @@ function toggleRegionSelection() {
         btn.classList.remove('btn-secondary');
         btn.classList.add('btn-primary');
         help.style.display = 'block';
-        overlayControls.classList.add('active');
         document.getElementById('videoPlayer').pause();
 
         // Sync canvas size in case the user scrolled before selecting
         syncCanvasSize();
 
         if (basketSelectionMode === 'click') {
-            // No initial overlay; the hint is drawn by drawOverlay
+            // Tap to Place: no initial box, crosshair cursor, no Confirm button needed
             overlayRegion = null;
             canvas.style.cursor = 'crosshair';
+            overlayControls.classList.remove('active');
             drawOverlay();
         } else {
             canvas.style.cursor = '';
             // Create a default overlay region centered on the video (larger default)
             overlayRegion = { x: 0.35, y: 0.25, width: 0.30, height: 0.30 };
+            overlayControls.classList.add('active');
             drawOverlay();
         }
     } else {
@@ -166,12 +167,15 @@ function setSelectionMode(mode) {
     document.getElementById('regionHelpClick').style.display = mode === 'click' ? 'block' : 'none';
     if (isSelectingRegion) {
         const canvas = document.getElementById('selectionCanvas');
+        const overlayControls = document.getElementById('basketOverlayControls');
         if (mode === 'click') {
             overlayRegion = null;
             canvas.style.cursor = 'crosshair';
+            overlayControls.classList.remove('active');
         } else {
             if (!overlayRegion) overlayRegion = { x: 0.35, y: 0.25, width: 0.30, height: 0.30 };
             canvas.style.cursor = '';
+            overlayControls.classList.add('active');
         }
         drawOverlay();
     }

@@ -1,10 +1,15 @@
 function syncCanvasSize() {
     if (!selectionCanvas) return;
+    // Prefer the canvas's own rendered rect so buffer & touch coords share the same reference frame.
+    // Fall back to the video rect when the canvas is hidden (rect.width === 0).
+    const canvasRect = selectionCanvas.getBoundingClientRect();
     const video = document.getElementById('videoPlayer');
-    const rect = video.getBoundingClientRect();
-    if (rect.width > 0) {
-        selectionCanvas.width = rect.width;
-        selectionCanvas.height = rect.height;
+    const videoRect = video.getBoundingClientRect();
+    const w = canvasRect.width > 0 ? canvasRect.width : videoRect.width;
+    const h = canvasRect.height > 0 ? canvasRect.height : videoRect.height;
+    if (w > 0) {
+        selectionCanvas.width = w;
+        selectionCanvas.height = h;
     }
     redrawRegion();
 }
@@ -37,11 +42,15 @@ const MIN_REGION_SIZE = 0.02;  // Minimum 8% of video in either dimension
 function getPointerPos(e) {
     const rect = selectionCanvas.getBoundingClientRect();
     const touch = e.touches ? e.touches[0] : (e.changedTouches ? e.changedTouches[0] : e);
+    const cx = (touch.clientX || e.clientX) - rect.left;
+    const cy = (touch.clientY || e.clientY) - rect.top;
+    // Normalize using the canvas's own rendered size so touch coords and
+    // canvas buffer coords share the same reference frame.
     return {
-        px: (touch.clientX || e.clientX) - rect.left,
-        py: (touch.clientY || e.clientY) - rect.top,
-        nx: ((touch.clientX || e.clientX) - rect.left) / selectionCanvas.width,
-        ny: ((touch.clientY || e.clientY) - rect.top) / selectionCanvas.height
+        px: cx,
+        py: cy,
+        nx: cx / rect.width,
+        ny: cy / rect.height
     };
 }
 
@@ -66,8 +75,8 @@ function hitTestOverlay(px, py) {
     return null;
 }
 
-const DEFAULT_CLICK_W = 0.20;
-const DEFAULT_CLICK_H = 0.25;
+const DEFAULT_CLICK_W = 0.14;
+const DEFAULT_CLICK_H = 0.16;
 
 function handleClickToPlace(e) {
     e.preventDefault();
