@@ -9,6 +9,7 @@ let courtType = null;
 
 // Region selection variables - now supports multiple regions
 let basketRegions = [];
+var basketSelectionMode = 'drag'; // 'drag' or 'click'
 let isSelectingRegion = false;
 let selectionCanvas = null;
 let selectionCtx = null;
