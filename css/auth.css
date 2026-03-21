@@ -1,0 +1,91 @@
+/* ── Auth widget shared styles ── */
+
+#auth-container {
+    display: flex;
+    align-items: center;
+}
+
+/* Signed-in chip */
+.auth-signed-in {
+    display: none;
+    align-items: center;
+    gap: 8px;
+}
+
+#auth-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    flex-shrink: 0;
+}
+
+#auth-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.auth-signed-in button {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+
+.auth-signed-in button:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* ── Landing page nav: adapt to scrolled (white bg) state ── */
+#main-nav.scrolled #auth-name {
+    color: var(--color-text, #1a1a2e);
+}
+
+#main-nav.scrolled .auth-signed-in button {
+    background: rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: var(--color-text-muted, #555);
+}
+
+#main-nav.scrolled .auth-signed-in button:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+#main-nav.scrolled #auth-avatar {
+    border-color: rgba(0, 0, 0, 0.2);
+}
+
+/* ── App page header positioning ── */
+.header {
+    position: relative;
+}
+
+.header #auth-container {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+}
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+    #auth-name {
+        display: none;
+    }
+
+    .header #auth-container {
+        top: 12px;
+        right: 14px;
+    }
+}

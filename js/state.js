@@ -1,3 +1,5 @@
+let currentUser = null;  // { name, email, picture, sub } set by auth.js
+
 let videoFile = null;
 let highlights = [];
 let settings = {

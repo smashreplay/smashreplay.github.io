@@ -9,12 +9,32 @@
     <link rel="stylesheet" href="css/app-overlays.css">
     <link rel="stylesheet" href="css/court-type.css">
     <link rel="stylesheet" href="css/post-detection-modal.css">
+    <link rel="stylesheet" href="css/auth.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1><a href="/" style="color: inherit; text-decoration: none;">🏀 Smash Replay</a></h1>
             <p>Automatically find made baskets in your pickup game videos</p>
+            <div id="auth-container">
+                <div class="auth-signed-out">
+                    <div id="g_id_onload"
+                         data-client_id="YOUR_GOOGLE_CLIENT_ID"
+                         data-callback="handleCredentialResponse"
+                         data-auto_select="false"></div>
+                    <div class="g_id_signin"
+                         data-type="standard"
+                         data-size="medium"
+                         data-text="signin_with"
+                         data-shape="rectangular"></div>
+                </div>
+                <div class="auth-signed-in">
+                    <img id="auth-avatar" src="" alt="avatar" width="32" height="32">
+                    <span id="auth-name"></span>
+                    <button onclick="signOut()">Sign out</button>
+                </div>
+            </div>
         </div>
 
         <div class="content">
@@ -263,6 +283,7 @@
 
     <!-- State & utilities -->
     <script src="js/state.js"></script>
+    <script src="js/auth.js"></script>
     <script src="js/utils.js"></script>
 
     <!-- Court type selection -->
