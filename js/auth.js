@@ -16,6 +16,8 @@ function handleCredentialResponse(response) {
 // Called by the Sign out button
 function signOut() {
     currentUser = null;
+    driveAccessToken = null;
+    driveTokenExpiry = 0;
     localStorage.removeItem('smashreplay_user');
     updateAuthUI(null);
 }
