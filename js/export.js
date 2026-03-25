@@ -89,6 +89,7 @@ async function exportSingleClip(index) {
     URL.revokeObjectURL(url);
 
     showStatus(`Clip ${index + 1} exported!`, 'complete');
+    offerDriveUpload(finalBlob, filename, 'drive-status-single');
 }
 
 async function exportClip() {
@@ -329,6 +330,7 @@ async function exportClip() {
             a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
+            offerDriveUpload(outputBlob, filename, 'drive-status-bulk');
 
             if (totalBatches > 1) {
                 showStatus(`Exported batch ${batchIdx + 1} of ${totalBatches} (${batch.length} clip${batch.length > 1 ? 's' : ''})`, 'processing');

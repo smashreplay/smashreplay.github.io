@@ -1,5 +1,10 @@
 let currentUser = null;  // { name, email, picture, sub } set by auth.js
 
+// Google Drive OAuth2 state — managed by drive.js
+let driveTokenClient = null;
+let driveAccessToken = null;
+let driveTokenExpiry = 0;
+
 let videoFile = null;
 let highlights = [];
 let settings = {

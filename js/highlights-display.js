@@ -79,7 +79,9 @@ function updateHighlightsDisplay() {
                 <div class="highlight-actions" onclick="event.stopPropagation()">
                     <button onclick="exportSingleClip(${i})" title="Export this clip">🎬 Clip</button>
                     ${canShare ? `<button onclick="shareSingleHighlight(${i})" title="Share this highlight">📤 Share</button>` : ''}
+                    ${currentUser ? `<button class="drive-btn" onclick="triggerDriveForClip(${i})" title="Export &amp; save to Drive">\u2601 Drive</button>` : ''}
                 </div>
+                ${currentUser ? `<div id="drive-clip-status-${i}" class="drive-status" style="display:none;"></div>` : ''}
             </div>
         </div>
     `}).join('');

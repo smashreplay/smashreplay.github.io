@@ -1,0 +1,82 @@
+/* Google Drive upload UI */
+
+.drive-btn {
+    padding: 4px 8px;
+    border: 1px solid #1a73e8;
+    background: white;
+    color: #1a73e8;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+.drive-btn:hover {
+    background: #1a73e8;
+    color: white;
+}
+
+.drive-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.drive-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    margin-top: 6px;
+    padding: 6px 10px;
+    border-radius: 6px;
+}
+
+.drive-status-offer {
+    background: #e8f0fe;
+    color: #1a73e8;
+}
+
+.drive-status-loading {
+    background: #f8f9fa;
+    color: #5f6368;
+}
+
+.drive-status-success {
+    background: #e6f4ea;
+    color: #137333;
+}
+
+.drive-status-error {
+    background: #fce8e6;
+    color: #c5221f;
+}
+
+.drive-progress {
+    flex: 1;
+    min-width: 60px;
+    height: 4px;
+    background: #dadce0;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.drive-progress-fill {
+    height: 100%;
+    background: #1a73e8;
+    border-radius: 2px;
+    width: 0;
+    transition: width 0.2s;
+}
+
+.drive-link {
+    color: #1a73e8;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.drive-link:hover {
+    text-decoration: underline;
+}
