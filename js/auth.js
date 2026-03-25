@@ -1,4 +1,4 @@
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID';
+const GOOGLE_CLIENT_ID = '161978008950-pi7h8k5pgqrodvit5qnnt44agat4gi9q.apps.googleusercontent.com';
 
 // Called by Google Identity Services after the user picks an account
 function handleCredentialResponse(response) {
