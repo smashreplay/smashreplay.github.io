@@ -14,6 +14,11 @@ function loadVideo() {
 
     const video = document.getElementById('videoPlayer');
     const processingVideo = document.getElementById('processingVideo');
+
+    // Revoke the previous video's object URL (both elements share one URL) —
+    // a leaked URL pins the entire previous File in memory.
+    if (video.src && video.src.startsWith('blob:')) URL.revokeObjectURL(video.src);
+
     const url = URL.createObjectURL(videoFile);
 
     video.removeAttribute('crossorigin');

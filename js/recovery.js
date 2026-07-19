@@ -1,8 +1,16 @@
 // Called when slow processing is detected — stops processing,
 // reloads the video to populate the browser cache, then retries.
 let _processingAborted = false;
+let _userCancelled = false;    // Distinguishes user cancel from reloadAndRetry abort
 let _slowRetryCount = 0;       // How many times we've auto-reloaded for slow processing
 const _MAX_AUTO_RETRIES = 3;   // Auto-reload up to this many times before showing manual button
+
+// User-facing cancel from the progress container. The processing loop checks
+// the flag at the top of each iteration and restores the UI itself.
+function cancelProcessing() {
+    _userCancelled = true;
+    _processingAborted = true;
+}
 
 function reloadAndRetry() {
     // Abort current processing loop

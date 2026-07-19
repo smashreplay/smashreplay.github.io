@@ -53,12 +53,10 @@ async function uploadToDrive(blob, filename, onProgress) {
         'Content-Type: ' + mimeType + '\r\n\r\n'
     );
     const closePart = enc.encode('\r\n--' + boundary + '--');
-    const blobBytes = new Uint8Array(await blob.arrayBuffer());
 
-    const body = new Uint8Array(headerPart.length + blobBytes.length + closePart.length);
-    body.set(headerPart, 0);
-    body.set(blobBytes, headerPart.length);
-    body.set(closePart, headerPart.length + blobBytes.length);
+    // Send a Blob so the browser streams the multipart body — copying the clip
+    // into a concatenated Uint8Array doubled its footprint in the JS heap.
+    const body = new Blob([headerPart, blob, closePart]);
 
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();

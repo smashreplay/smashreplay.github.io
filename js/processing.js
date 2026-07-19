@@ -6,7 +6,9 @@ async function processVideo() {
 
     const video = document.getElementById('processingVideo'); // Use hidden video
     const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+    // willReadFrequently keeps the canvas CPU-backed — getImageData runs every
+    // frame, and GPU-backed readback is a major stall on mobile browsers.
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
     canvas.width = 320;
     canvas.height = 180;
@@ -70,7 +72,17 @@ async function processVideo() {
     _processingAborted = false;
 
     for (let time = 0; time < duration; time += interval) {
-        if (_processingAborted) return; // Abort if user triggered reload
+        if (_processingAborted) {
+            // reloadAndRetry() manages its own UI and restart; only a user
+            // cancel needs the UI restored here.
+            if (_userCancelled) {
+                _userCancelled = false;
+                document.getElementById('processBtn').disabled = false;
+                document.getElementById('progressContainer').style.display = 'none';
+                showStatus('Processing cancelled.', 'complete');
+            }
+            return;
+        }
         const frameStart = performance.now();
 
         // --- Timed seek ---
@@ -85,7 +97,8 @@ async function processVideo() {
             video.addEventListener('seeked', () => { clearTimeout(timeout); done(false); }, { once: true });
         });
         const seekMs = performance.now() - seekStart;
-        perfStats.seekTimes.push(seekMs);
+        recordPerfSample(perfStats.seek, seekMs);
+        if (seekMs > 500) perfStats.slowSeekCount++;
         if (seekTimedOut) perfStats.seekTimeouts++;
         perfStats.lastSeeks.push(seekMs);
         if (perfStats.lastSeeks.length > 10) perfStats.lastSeeks.shift();
@@ -103,13 +116,13 @@ async function processVideo() {
             showStatus('Cannot process this video due to cross-origin restrictions. The video server does not allow pixel-level access from the browser. Please download the video and upload it as a local file instead.', 'error');
             return;
         }
-        perfStats.drawTimes.push(performance.now() - drawStart);
+        recordPerfSample(perfStats.draw, performance.now() - drawStart);
 
         if (previousFrame) {
             // --- Timed motion detection ---
             const motionStart = performance.now();
             const motions = detectMotion(previousFrame, currentFrame);
-            perfStats.motionTimes.push(performance.now() - motionStart);
+            recordPerfSample(perfStats.motion, performance.now() - motionStart);
 
             // Push each region's motion into its own history
             motions.forEach((m, i) => {
@@ -180,7 +193,7 @@ async function processVideo() {
         previousFrame = currentFrame;
         framesProcessed++;
         perfStats.frameCount = framesProcessed;
-        perfStats.frameTimes.push(performance.now() - frameStart);
+        recordPerfSample(perfStats.frame, performance.now() - frameStart);
 
         const progress = Math.floor((time / duration) * 100);
         document.getElementById('progressFill').style.width = progress + '%';
@@ -190,7 +203,7 @@ async function processVideo() {
 
         // Slow-processing detection: after 2 frames, check if we're crawling
         if (framesProcessed === 2 && !document.getElementById('slowBanner')) {
-            const avgFrame = perfStats.frameTimes.reduce((a, b) => a + b, 0) / perfStats.frameTimes.length;
+            const avgFrame = perfAvg(perfStats.frame);
             if (avgFrame > 1500) {
                 if (_slowRetryCount < _MAX_AUTO_RETRIES) {
                     // Auto-reload silently for the first 3 attempts
@@ -231,13 +244,13 @@ async function processVideo() {
     if (perfStats) {
         const s = perfStats;
         const elapsed = ((performance.now() - s.startTime) / 1000).toFixed(1);
-        const avg = arr => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : '—';
+        const avg = agg => agg.count ? perfAvg(agg).toFixed(1) : '—';
         console.log(`%c[Perf Summary]`, 'color: #64ffda; font-weight: bold;',
             `\n  Frames: ${s.frameCount} in ${elapsed}s (${(s.frameCount / elapsed).toFixed(2)} eff. FPS)` +
-            `\n  Seek — avg: ${avg(s.seekTimes)}ms, min: ${Math.min(...s.seekTimes).toFixed(0)}ms, max: ${Math.max(...s.seekTimes).toFixed(0)}ms` +
-            `\n  Seek timeouts: ${s.seekTimeouts}, slow (>500ms): ${s.seekTimes.filter(t => t > 500).length}` +
-            `\n  Draw+read avg: ${avg(s.drawTimes)}ms, Motion calc avg: ${avg(s.motionTimes)}ms` +
-            `\n  Total/frame avg: ${avg(s.frameTimes)}ms` +
+            `\n  Seek — avg: ${avg(s.seek)}ms, min: ${perfMin(s.seek).toFixed(0)}ms, max: ${s.seek.max.toFixed(0)}ms` +
+            `\n  Seek timeouts: ${s.seekTimeouts}, slow (>500ms): ${s.slowSeekCount}` +
+            `\n  Draw+read avg: ${avg(s.draw)}ms, Motion calc avg: ${avg(s.motion)}ms` +
+            `\n  Total/frame avg: ${avg(s.frame)}ms` +
             `\n  Codec: ${document.getElementById('perfCodec').textContent}` +
             `\n  Resolution: ${document.getElementById('perfResolution').textContent}`
         );
