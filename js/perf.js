@@ -1,13 +1,31 @@
+// Timing stats are kept as running aggregates rather than arrays of every
+// sample — per-frame arrays grow unbounded on long videos and spreading them
+// into Math.min/max throws a RangeError past ~100k elements.
+function newPerfAggregate() {
+    return { count: 0, sum: 0, min: Infinity, max: 0 };
+}
+
+function recordPerfSample(agg, ms) {
+    agg.count++;
+    agg.sum += ms;
+    if (ms < agg.min) agg.min = ms;
+    if (ms > agg.max) agg.max = ms;
+}
+
+function perfAvg(agg) { return agg.count ? agg.sum / agg.count : 0; }
+function perfMin(agg) { return agg.count ? agg.min : 0; }
+
 function resetPerfStats() {
     perfStats = {
         startTime: 0,
         frameCount: 0,
-        seekTimes: [],       // all seek durations in ms
-        seekTimeouts: 0,     // seeks that hit the 5s timeout
-        drawTimes: [],       // drawImage + getImageData durations
-        motionTimes: [],     // motion detection durations
-        frameTimes: [],      // total per-frame durations
-        lastSeeks: [],       // last 10 seek times for live view
+        seek: newPerfAggregate(),    // seek durations in ms
+        seekTimeouts: 0,             // seeks that hit the 5s timeout
+        slowSeekCount: 0,            // seeks slower than 500ms
+        draw: newPerfAggregate(),    // drawImage + getImageData durations
+        motion: newPerfAggregate(),  // motion detection durations
+        frame: newPerfAggregate(),   // total per-frame durations
+        lastSeeks: [],               // last 10 seek times for live view
     };
 }
 
@@ -15,14 +33,11 @@ function updatePerfUI() {
     if (!perfStats || perfStats.frameCount === 0) return;
     const s = perfStats;
     const elapsed = (performance.now() - s.startTime) / 1000;
-    const avg = arr => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
-    const min = arr => arr.length ? Math.min(...arr) : 0;
-    const max = arr => arr.length ? Math.max(...arr) : 0;
 
-    const seekAvg = avg(s.seekTimes);
-    const seekMin = min(s.seekTimes);
-    const seekMax = max(s.seekTimes);
-    const slowSeeks = s.seekTimes.filter(t => t > 500).length;
+    const seekAvg = perfAvg(s.seek);
+    const seekMin = perfMin(s.seek);
+    const seekMax = s.seek.max;
+    const slowSeeks = s.slowSeekCount;
 
     document.getElementById('perfFrameCount').textContent = s.frameCount;
     document.getElementById('perfElapsed').textContent = elapsed.toFixed(1) + 's';
@@ -42,11 +57,11 @@ function updatePerfUI() {
     slowEl.textContent = slowSeeks;
     slowEl.className = 'perf-val' + (slowSeeks > 10 ? ' bad' : slowSeeks > 0 ? ' warn' : '');
 
-    document.getElementById('perfDrawAvg').textContent = avg(s.drawTimes).toFixed(1) + 'ms';
-    document.getElementById('perfMotionAvg').textContent = avg(s.motionTimes).toFixed(1) + 'ms';
+    document.getElementById('perfDrawAvg').textContent = perfAvg(s.draw).toFixed(1) + 'ms';
+    document.getElementById('perfMotionAvg').textContent = perfAvg(s.motion).toFixed(1) + 'ms';
 
     const frameAvgEl = document.getElementById('perfFrameAvg');
-    const frameAvg = avg(s.frameTimes);
+    const frameAvg = perfAvg(s.frame);
     frameAvgEl.textContent = frameAvg.toFixed(1) + 'ms';
     frameAvgEl.className = 'perf-val' + (frameAvg > 1000 ? ' bad' : frameAvg > 400 ? ' warn' : '');
 

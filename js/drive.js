@@ -53,12 +53,10 @@ async function uploadToDrive(blob, filename, onProgress) {
         'Content-Type: ' + mimeType + '\r\n\r\n'
     );
     const closePart = enc.encode('\r\n--' + boundary + '--');
-    const blobBytes = new Uint8Array(await blob.arrayBuffer());
 
-    const body = new Uint8Array(headerPart.length + blobBytes.length + closePart.length);
-    body.set(headerPart, 0);
-    body.set(blobBytes, headerPart.length);
-    body.set(closePart, headerPart.length + blobBytes.length);
+    // Send a Blob so the browser streams the multipart body — copying the clip
+    // into a concatenated Uint8Array doubled its footprint in the JS heap.
+    const body = new Blob([headerPart, blob, closePart]);
 
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -131,6 +129,9 @@ async function saveToDrive(blob, filename, statusEl) {
             statusEl.innerHTML =
                 'Saved! <a class="drive-link" href="' + result.webViewLink + '" target="_blank" rel="noopener">Open in Drive</a>';
             statusEl.className = 'drive-status drive-status-success';
+
+            // Upload done — release the retained blob for this offer, if any
+            if (statusEl.id && _driveOffers[statusEl.id]) delete _driveOffers[statusEl.id];
         } catch (err) {
             if (err.message === 'auth_expired') {
                 // Token expired mid-upload — refresh silently and retry once
@@ -146,19 +147,29 @@ async function saveToDrive(blob, filename, statusEl) {
     requestDriveToken(doUpload);
 }
 
+// Pending Drive offers keyed by status element id. A registry (instead of a
+// closure per call) means a new offer releases the previous blob, and a
+// successful upload releases its own — exported clips are no longer pinned in
+// memory for the rest of the session.
+const _driveOffers = {};
+
 // Called by export.js after each local download — surfaces a Drive upload button
-// without re-running FFmpeg. The blob is captured in a closure per call.
+// without re-running FFmpeg.
 function offerDriveUpload(blob, filename, statusId) {
     if (!currentUser) return;
     const el = document.getElementById(statusId);
     if (!el) return;
+    _driveOffers[statusId] = { blob, filename };
     el.className = 'drive-status drive-status-offer';
     el.style.display = '';
     el.innerHTML = '';
     const btn = document.createElement('button');
     btn.className = 'drive-btn';
     btn.textContent = '\u2601 Save to Drive';
-    btn.addEventListener('click', () => saveToDrive(blob, filename, el));
+    btn.addEventListener('click', () => {
+        const offer = _driveOffers[statusId];
+        if (offer) saveToDrive(offer.blob, offer.filename, el);
+    });
     el.appendChild(btn);
 }
 
@@ -183,6 +194,7 @@ async function triggerDriveForClip(index) {
     statusEl.className = 'drive-status drive-status-loading';
 
     const blob = await extractClip(highlight);
+    releaseFFmpeg(); // done with FFmpeg — free the WASM heap before uploading
     if (!blob) {
         statusEl.innerHTML = 'Clip export failed.';
         statusEl.className = 'drive-status drive-status-error';

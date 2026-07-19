@@ -8,6 +8,35 @@ async function toBlobURL(url, mimeType) {
     return URL.createObjectURL(new Blob([buf], { type: mimeType }));
 }
 
+// Blob URLs for the FFmpeg script/core/worker, fetched once and cached so
+// releaseFFmpeg() + reload never re-downloads the ~30 MB core.
+let _ffmpegAssets = null; // { coreURL, wasmURL, workerBlobURL }
+
+async function fetchFFmpegAssets(textEl, progressEl) {
+    if (_ffmpegAssets) return _ffmpegAssets;
+
+    // Load only @ffmpeg/ffmpeg UMD script (global: FFmpegWASM)
+    // Note: @ffmpeg/util@0.12.2 UMD is broken (gh #848), so we use our own toBlobURL
+    await loadScript('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js')
+        .catch(() => loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js'));
+    progressEl.style.width = '15%';
+    textEl.textContent = 'Downloading FFmpeg core...';
+
+    const coreBase = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
+    const ffmpegBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd';
+
+    // Convert all resources to same-origin blob URLs.
+    // This is critical: Workers cannot be created from cross-origin URLs,
+    // and the ffmpeg class internally spawns a Worker from 814.ffmpeg.js.
+    const [coreURL, wasmURL, workerBlobURL] = await Promise.all([
+        toBlobURL(`${coreBase}/ffmpeg-core.js`, 'text/javascript'),
+        toBlobURL(`${coreBase}/ffmpeg-core.wasm`, 'application/wasm'),
+        toBlobURL(`${ffmpegBase}/814.ffmpeg.js`, 'text/javascript'),
+    ]);
+    _ffmpegAssets = { coreURL, wasmURL, workerBlobURL };
+    return _ffmpegAssets;
+}
+
 async function loadFFmpeg() {
     if (ffmpegLoaded) return true;
     if (ffmpegLoading) return false;
@@ -20,17 +49,16 @@ async function loadFFmpeg() {
 
     overlay.classList.add('active');
     titleEl.textContent = 'Loading Video Editor...';
-    textEl.textContent = 'Downloading FFmpeg (~30 MB, first time only)';
+    textEl.textContent = _ffmpegAssets
+        ? 'Initializing FFmpeg...'
+        : 'Downloading FFmpeg (~30 MB, first time only)';
     progressEl.style.width = '10%';
 
     try {
-        // Load only @ffmpeg/ffmpeg UMD script (global: FFmpegWASM)
-        // Note: @ffmpeg/util@0.12.2 UMD is broken (gh #848), so we use our own toBlobURL
-        await loadScript('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js')
-            .catch(() => loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js'));
-        progressEl.style.width = '15%';
+        const { coreURL, wasmURL, workerBlobURL } = await fetchFFmpegAssets(textEl, progressEl);
+        progressEl.style.width = '80%';
 
-        textEl.textContent = 'Downloading FFmpeg core...';
+        textEl.textContent = 'Initializing FFmpeg...';
 
         const { FFmpeg } = FFmpegWASM;
         ffmpegInstance = new FFmpeg();
@@ -41,12 +69,7 @@ async function loadFFmpeg() {
             textEl.textContent = `Processing: ${pct}%`;
         });
 
-        const coreBase = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
-        const ffmpegBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd';
-
-        // Convert all resources to same-origin blob URLs.
-        // This is critical: Workers cannot be created from cross-origin URLs,
-        // and the ffmpeg class internally spawns a Worker from 814.ffmpeg.js.
+        // Patch Worker to redirect the cross-origin 814.ffmpeg.js to our blob URL.
         //
         // NOTE: We must NOT pass classWorkerURL to ffmpegInstance.load() because
         // the UMD build forces {type:"module"} when classWorkerURL is set, but the
@@ -54,16 +77,6 @@ async function loadFFmpeg() {
         // in classic workers. Instead, we temporarily patch the Worker constructor
         // to intercept the cross-origin worker URL and swap in our blob URL while
         // keeping the worker type as classic.
-        const [coreURL, wasmURL, workerBlobURL] = await Promise.all([
-            toBlobURL(`${coreBase}/ffmpeg-core.js`, 'text/javascript'),
-            toBlobURL(`${coreBase}/ffmpeg-core.wasm`, 'application/wasm'),
-            toBlobURL(`${ffmpegBase}/814.ffmpeg.js`, 'text/javascript'),
-        ]);
-        progressEl.style.width = '80%';
-
-        textEl.textContent = 'Initializing FFmpeg...';
-
-        // Patch Worker to redirect the cross-origin 814.ffmpeg.js to our blob URL
         const OriginalWorker = window.Worker;
         window.Worker = class extends OriginalWorker {
             constructor(scriptURL, options) {
@@ -98,6 +111,20 @@ async function loadFFmpeg() {
         showStatus('Failed to load FFmpeg: ' + (err.message || err), 'error');
         return false;
     }
+}
+
+// Terminate the FFmpeg worker and drop the instance. The WASM heap never
+// shrinks — after processing a large video its high-water mark would persist
+// for the page lifetime, so exports release the instance when done. The next
+// loadFFmpeg() re-creates it from the cached blob URLs in a second or two
+// with no re-download.
+function releaseFFmpeg() {
+    if (ffmpegInstance) {
+        try { ffmpegInstance.terminate(); } catch (e) {}
+    }
+    ffmpegInstance = null;
+    ffmpegLoaded = false;
+    ffmpegLoading = false;
 }
 
 function loadScript(src) {
@@ -137,11 +164,7 @@ function guessVideoExtension() {
 }
 
 async function extractClip(highlight) {
-    let data = await getVideoData();
-    if (!data) return null;
-
     const ext = guessVideoExtension();
-    const inputName = `input.${ext}`;
     const outputName = `clip.${ext}`;
 
     const startTime = Math.max(0, highlight.timestamp - 3);
@@ -153,28 +176,28 @@ async function extractClip(highlight) {
     const progressEl = document.getElementById('ffmpegProgressFill');
     overlay.classList.add('active');
     titleEl.textContent = 'Extracting Clip...';
-    textEl.textContent = 'Writing video data...';
+    textEl.textContent = 'Preparing video...';
     progressEl.style.width = '10%';
 
+    let input = null;
     try {
-        await ffmpegInstance.writeFile(inputName, new Uint8Array(data));
-        data = null; // release JS-heap copy so GC can reclaim it
+        input = await mountVideoInput();
+        if (!input) {
+            overlay.classList.remove('active');
+            return null;
+        }
         progressEl.style.width = '30%';
         textEl.textContent = 'Trimming clip...';
 
         await ffmpegInstance.exec([
             '-ss', startTime.toFixed(2),
-            '-i', inputName,
+            '-i', input.path,
             '-t', duration.toFixed(2),
             '-c', 'copy',
             '-avoid_negative_ts', 'make_zero',
             outputName
         ]);
         progressEl.style.width = '90%';
-
-        // Delete the (large) input file before reading output to
-        // reduce peak memory — only the small clip remains in MEMFS.
-        await ffmpegInstance.deleteFile(inputName).catch(() => {});
 
         const outputData = await ffmpegInstance.readFile(outputName);
         progressEl.style.width = '100%';
@@ -191,5 +214,7 @@ async function extractClip(highlight) {
         overlay.classList.remove('active');
         showStatus('Failed to extract clip. The video format may not be supported.', 'error');
         return null;
+    } finally {
+        if (input) await input.cleanup();
     }
 }
