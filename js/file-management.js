@@ -29,6 +29,7 @@ function loadVideo() {
     video.onloadedmetadata = () => {
         document.getElementById('emptyState').style.display = 'none';
         document.getElementById('videoSection').style.display = 'grid';
+        revokeHighlightThumbnails();
         highlights = [];
         basketRegions = [];
         courtType = null;

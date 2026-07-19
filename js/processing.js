@@ -10,9 +10,11 @@ async function processVideo() {
     // frame, and GPU-backed readback is a major stall on mobile browsers.
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-    canvas.width = 320;
-    canvas.height = 180;
+    const quality = initialProcessingQuality();
+    canvas.width = quality.width;
+    canvas.height = quality.height;
 
+    revokeHighlightThumbnails();
     highlights = [];
     chartData = [];
     chartDetections = [];
@@ -51,10 +53,11 @@ async function processVideo() {
     await warmUpVideo(video, 'Processing video...' + regionMsg);
 
     const duration = video.duration;
-    const fps = 3;
+    const fps = quality.fps;
     const interval = 1 / fps;
+    const maxHistory = fps * 5; // motion-history window ≈ 5 seconds of frames
 
-    let previousFrame = null;
+    let previousFrame = null; // reused {data, width, height} snapshot buffer
     let framesProcessed = 0;
     const regionCount = Math.max(1, basketRegions.length);
 
@@ -71,6 +74,9 @@ async function processVideo() {
     await probeVideoInfo(video);
     _processingAborted = false;
 
+    let lastYieldAt = performance.now();
+    let lastChartDrawAt = 0;
+
     for (let time = 0; time < duration; time += interval) {
         if (_processingAborted) {
             // reloadAndRetry() manages its own UI and restart; only a user
@@ -83,6 +89,15 @@ async function processVideo() {
             }
             return;
         }
+
+        // Pause while the tab is hidden; exempt the pause from perf timing
+        // and drop the previous frame (the decoder may have been evicted).
+        if (document.hidden) {
+            const pausedMs = await waitUntilVisible();
+            perfStats.startTime += pausedMs;
+            previousFrame = null;
+        }
+
         const frameStart = performance.now();
 
         // --- Timed seek ---
@@ -127,7 +142,7 @@ async function processVideo() {
             // Push each region's motion into its own history
             motions.forEach((m, i) => {
                 motionHistories[i].push(m);
-                if (motionHistories[i].length > 15) motionHistories[i].shift();
+                if (motionHistories[i].length > maxHistory) motionHistories[i].shift();
             });
 
             // Record for chart: store per-region motions and thresholds
@@ -146,14 +161,8 @@ async function processVideo() {
                         chartDetections.push(time);
                         if (chartData.length > 0) chartData[chartData.length - 1].detected = true;
 
-                        // Capture thumbnail with detection data
-                        const thumbnail = captureThumbnail(video, canvas, ctx, {
-                            motion: detectionResult.motion,
-                            rim: detectionResult.rim,
-                            ball: detectionResult.ball,
-                            score: detectionResult.score,
-                            regionIndex: detectionResult.regionIndex
-                        });
+                        // Capture thumbnail (async JPEG blob encode)
+                        const thumbnail = await captureThumbnail(video);
 
                         highlights.push({
                             timestamp: time,
@@ -190,7 +199,16 @@ async function processVideo() {
             }
         }
 
-        previousFrame = currentFrame;
+        // Snapshot the current frame into one reused buffer instead of
+        // retaining each frame's ImageData — steadier GC on long videos.
+        if (!previousFrame || previousFrame.data.length !== currentFrame.data.length) {
+            previousFrame = {
+                data: new Uint8ClampedArray(currentFrame.data.length),
+                width: currentFrame.width,
+                height: currentFrame.height
+            };
+        }
+        previousFrame.data.set(currentFrame.data);
         framesProcessed++;
         perfStats.frameCount = framesProcessed;
         recordPerfSample(perfStats.frame, performance.now() - frameStart);
@@ -201,41 +219,32 @@ async function processVideo() {
         document.getElementById('framesAnalyzed').textContent = framesProcessed;
         document.getElementById('currentProcessTime').textContent = formatTime(time);
 
-        // Slow-processing detection: after 2 frames, check if we're crawling
-        if (framesProcessed === 2 && !document.getElementById('slowBanner')) {
-            const avgFrame = perfAvg(perfStats.frame);
-            if (avgFrame > 1500) {
-                if (_slowRetryCount < _MAX_AUTO_RETRIES) {
-                    // Auto-reload silently for the first 3 attempts
-                    console.log(`[Perf] Slow processing detected (avg ${(avgFrame / 1000).toFixed(1)}s/frame). Auto-reloading (attempt ${_slowRetryCount + 1}/${_MAX_AUTO_RETRIES})...`);
-                    reloadAndRetry();
-                    return; // exit processVideo — reloadAndRetry will restart it
-                } else {
-                    // 4th time still slow — show manual button
-                    const totalFrames = Math.ceil(duration / interval);
-                    const estMinutes = ((totalFrames * avgFrame) / 60000).toFixed(0);
-                    const banner = document.createElement('div');
-                    banner.id = 'slowBanner';
-                    banner.className = 'slow-processing-banner';
-                    banner.innerHTML = `
-                        <p><strong>Slow processing detected</strong><br>
-                        Avg ${(avgFrame / 1000).toFixed(1)}s per frame — at this rate it would take ~${estMinutes} min.<br>
-                        Auto-reload didn't help after ${_MAX_AUTO_RETRIES} attempts. You can try once more or wait it out.</p>
-                        <button onclick="reloadAndRetry()">Reload Video & Retry</button>
-                    `;
-                    document.getElementById('progressContainer').appendChild(banner);
-                }
-            } else if (_slowRetryCount > 0) {
-                // Was slow before but now it's fast — the reload worked!
-                console.log(`[Perf] Processing speed OK after ${_slowRetryCount} reload(s) (avg ${avgFrame.toFixed(0)}ms/frame).`);
-            }
+        // Slow-processing detection: after 2 frames, check if we're crawling.
+        // Returns true when an auto-reload was triggered — reloadAndRetry
+        // restarts processVideo, so this run must exit.
+        if (framesProcessed === 2 && checkSlowProcessing(duration, interval)) {
+            return;
         }
 
-        // Allow UI to update and redraw chart every 15 frames
-        if (framesProcessed % 15 === 0) {
+        // If the first frames show the device is crawling, halve the pixel
+        // work for the rest of the run (resolution only — fps is fixed at
+        // start so the motion-history window stays consistent).
+        if (framesProcessed === 10 && maybeReduceQuality(canvas, perfAvg(perfStats.frame))) {
+            previousFrame = null; // old resolution — diff would be invalid
+        }
+
+        // Yield to the UI on a time budget (rather than every N frames, which
+        // could block for seconds worth of frames on a fast device), and
+        // redraw the chart at most once per second.
+        const now = performance.now();
+        if (now - lastChartDrawAt > 1000) {
             drawMotionChart();
             updatePerfUI();
+            lastChartDrawAt = now;
+        }
+        if (now - lastYieldAt > 150) {
             await new Promise(resolve => setTimeout(resolve, 0));
+            lastYieldAt = performance.now();
         }
     }
 

@@ -28,10 +28,16 @@ function drawMotionChart() {
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, W, H);
 
+    // Decimate to roughly one point per plot pixel — a long video accumulates
+    // tens of thousands of points, and drawing them all on every redraw made
+    // chart rendering O(n²) over the course of a run.
+    const stride = Math.max(1, Math.ceil(chartData.length / plotW));
+    const points = stride === 1 ? chartData : chartData.filter((_, i) => i % stride === 0);
+
     // Collect all motion and threshold values across all regions
-    const regionCount = chartData.length > 0 ? chartData[0].motions.length : 1;
+    const regionCount = points.length > 0 ? points[0].motions.length : 1;
     const allValues = [];
-    chartData.forEach(d => {
+    points.forEach(d => {
         d.motions.forEach(m => allValues.push(m));
         d.thresholds.forEach(t => allValues.push(t));
     });
@@ -88,7 +94,7 @@ function drawMotionChart() {
         ctx.lineWidth = lw;
         if (dash) ctx.setLineDash(dash);
         ctx.beginPath();
-        chartData.forEach((d, i) => {
+        points.forEach((d, i) => {
             const x = pad.left + (d.time / duration) * plotW;
             const y = pad.top + plotH * (1 - Math.min(1, fn(d) / maxY));
             i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
